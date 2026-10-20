@@ -1,0 +1,9 @@
+ORGAN = {
+    "name": "filesystem",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": ["list_files", "read_file", "search_files", "write_file"],
+    "keywords": [],
+    "entry_module": "filesystem.filesystem",
+    "entry_attr": "TOOLS",
+}

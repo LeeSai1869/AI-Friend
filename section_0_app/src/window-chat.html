@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Central Mind — Chat</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Central Mind</div>
+        <div class="sidebar-actions">
+          <button class="icon-btn" id="btn-search">🔍</button>
+          <button class="icon-btn" id="btn-collapse">⊞</button>
+        </div>
+      </div>
+      <div class="sidebar-search" id="search-box" style="display:none;">
+        <input type="text" id="search-input" placeholder="Search chats..." />
+      </div>
+      <button class="sidebar-new" id="btn-new-chat">✎ New chat</button>
+      <div id="domain-list" style="padding: 0;"></div>
+      <div class="sidebar-list" id="chat-list"></div>
+      <div class="sidebar-footer">
+        <button id="btn-intake">📥 Memory intake</button>
+        <button id="btn-settings">⚙ Settings</button>
+        <button id="btn-trainer">👤 Trainer mode</button>
+        <button id="btn-mind">🧠 Mind panel</button>
+      </div>
+    </aside>
+    <main class="chat-window">
+      <div class="chat-topbar">
+        <div class="chat-topic">New chat <span class="dim">· general</span></div>
+      </div>
+      <div class="chat-body">
+        <div class="chat-thread" id="chat-thread">
+          <div class="msg msg-mind">
+            <div class="msg-role">Central Mind</div>
+            <div class="msg-body">Ready. What would you like to do?</div>
+          </div>
+        </div>
+      </div>
+      <div class="intent-bar" id="intent-bar"></div>
+      <div class="input-bar">
+        <textarea id="input" placeholder="Type a message..." rows="1"></textarea>
+        <button class="send-btn" id="send">Send ↑</button>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="ui/chat/shell/shell.js"></script>
+</body>
+  <!-- Memory Intake Panel -->
+  <div id="intake-overlay" style="display:none;">
+    <div id="intake-panel">
+      <div id="intake-header">
+        <span id="intake-title">Memory Intake</span>
+        <button id="intake-close">✕</button>
+      </div>
+      <div id="intake-body"></div>
+    </div>
+  </div>
+  </html>

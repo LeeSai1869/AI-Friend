@@ -1,0 +1,367 @@
+from pathlib import Path
+import tempfile
+import textwrap
+import unittest
+
+from section_1_central_mind.guard.contract import GuardPrincipal
+from section_1_central_mind.guard.layer import GuardLayer
+from section_1_central_mind.guard.policy import GuardPolicy
+from section_1_central_mind.mind.broker import ToolBroker
+
+
+class _Memory:
+    def search(self, *args, **kwargs):
+        return []
+
+
+class BrokerGuardEnforcementTests(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name).resolve()
+        self.tools = self.root / "tools"
+        self.tools.mkdir()
+
+        (self.root / "section_0_central_mind").mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _make_counting_tool(
+        self,
+        *,
+        requirement="workspace.read",
+    ):
+        folder = self.tools / "counting"
+        folder.mkdir()
+
+        (folder / "__init__.py").write_text(
+            "",
+            encoding="utf-8",
+        )
+
+        (folder / "engine.py").write_text(
+            textwrap.dedent(
+                """
+                EXECUTIONS = 0
+
+                class CountingTool:
+                    name = "counting_tool"
+                    description = "counts executions"
+                    parameters = {}
+
+                    def __init__(self, workspace_root, broker):
+                        self.workspace_root = workspace_root
+                        self.broker = broker
+
+                    def call(self, args):
+                        global EXECUTIONS
+                        EXECUTIONS += 1
+                        return {
+                            "ok": True,
+                            "data": {
+                                "executions": EXECUTIONS,
+                            },
+                            "error": None,
+                        }
+
+                TOOLS = [CountingTool]
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        (folder / "__manifest__.py").write_text(
+            textwrap.dedent(
+                f"""
+                ORGAN = {{
+                    "name": "counting",
+                    "kind": "tool",
+                    "scope": "outside_guards",
+                    "capabilities": ["counting_tool"],
+                    "security": {{
+                        "requires": {{
+                            "counting_tool": [{requirement!r}],
+                        }},
+                    }},
+                    "entry_module": "counting.engine",
+                    "entry_attr": "TOOLS",
+                }}
+                """
+            ),
+            encoding="utf-8",
+        )
+
+    def _principal(self, role="user"):
+        return GuardPrincipal(
+            principal_id=f"{role}.example",
+            kind="human",
+            role=role,
+            authenticated=True,
+            source="auth_service",
+        )
+
+    def _guard(self, grants):
+        policy = GuardPolicy(
+            human_role_grants=grants,
+        )
+
+        return GuardLayer(
+            self.root,
+            _Memory(),
+            policy=policy,
+        )
+
+    def test_denied_tool_never_executes(self):
+        self._make_counting_tool(
+            requirement="process.execute",
+        )
+
+        guard = self._guard({
+            "user": {"workspace.read"},
+        })
+
+        broker = ToolBroker(
+            self.root,
+            self.tools,
+            guard=guard,
+            principal=self._principal("user"),
+        )
+
+        result = broker.call(
+            "counting_tool",
+            {},
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("guard denied", result["error"])
+
+        tool_module = __import__(
+            "counting.engine",
+            fromlist=["EXECUTIONS"],
+        )
+
+        self.assertEqual(
+            tool_module.EXECUTIONS,
+            0,
+        )
+
+        # Denied calls do not consume execution budget.
+        self.assertEqual(
+            broker.call_count,
+            0,
+        )
+
+    def test_passed_tool_executes_exactly_once(self):
+        self._make_counting_tool(
+            requirement="workspace.read",
+        )
+
+        guard = self._guard({
+            "user": {"workspace.read"},
+        })
+
+        broker = ToolBroker(
+            self.root,
+            self.tools,
+            guard=guard,
+            principal=self._principal("user"),
+        )
+
+        result = broker.call(
+            "counting_tool",
+            {},
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["data"]["executions"],
+            1,
+        )
+        self.assertEqual(
+            broker.call_count,
+            1,
+        )
+
+    def test_missing_security_requirement_fails_closed_in_guarded_mode(self):
+        folder = self.tools / "legacy"
+        folder.mkdir()
+
+        (folder / "__init__.py").write_text(
+            "",
+            encoding="utf-8",
+        )
+
+        (folder / "engine.py").write_text(
+            textwrap.dedent(
+                """
+                EXECUTIONS = 0
+
+                class LegacyTool:
+                    name = "legacy_tool"
+                    description = "legacy"
+                    parameters = {}
+
+                    def __init__(self, workspace_root, broker):
+                        self.workspace_root = workspace_root
+                        self.broker = broker
+
+                    def call(self, args):
+                        global EXECUTIONS
+                        EXECUTIONS += 1
+                        return {
+                            "ok": True,
+                            "data": None,
+                            "error": None,
+                        }
+
+                TOOLS = [LegacyTool]
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        (folder / "__manifest__.py").write_text(
+            textwrap.dedent(
+                """
+                ORGAN = {
+                    "name": "legacy",
+                    "kind": "tool",
+                    "scope": "outside_guards",
+                    "capabilities": ["legacy_tool"],
+                    "entry_module": "legacy.engine",
+                    "entry_attr": "TOOLS",
+                }
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        guard = self._guard({
+            "administrator": {
+                "workspace.read",
+                "workspace.write",
+                "process.execute",
+            },
+        })
+
+        broker = ToolBroker(
+            self.root,
+            self.tools,
+            guard=guard,
+            principal=self._principal("administrator"),
+        )
+
+        result = broker.call(
+            "legacy_tool",
+            {},
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "no required security capability",
+            result["error"],
+        )
+
+        tool_module = __import__(
+            "legacy.engine",
+            fromlist=["EXECUTIONS"],
+        )
+
+        self.assertEqual(
+            tool_module.EXECUTIONS,
+            0,
+        )
+
+    def test_model_args_cannot_reduce_manifest_requirement(self):
+        self._make_counting_tool(
+            requirement="process.execute",
+        )
+
+        guard = self._guard({
+            "user": {"workspace.read"},
+        })
+
+        broker = ToolBroker(
+            self.root,
+            self.tools,
+            guard=guard,
+            principal=self._principal("user"),
+        )
+
+        result = broker.call(
+            "counting_tool",
+            {
+                "required_capabilities": [
+                    "workspace.read"
+                ],
+                "security": {
+                    "requires": [
+                        "workspace.read"
+                    ]
+                },
+            },
+        )
+
+        self.assertFalse(result["ok"])
+
+        tool_module = __import__(
+            "counting.engine",
+            fromlist=["EXECUTIONS"],
+        )
+
+        self.assertEqual(
+            tool_module.EXECUTIONS,
+            0,
+        )
+
+    def test_guard_without_principal_is_configuration_error(self):
+        self._make_counting_tool()
+
+        guard = self._guard({
+            "user": {"workspace.read"},
+        })
+
+        with self.assertRaises(ValueError):
+            ToolBroker(
+                self.root,
+                self.tools,
+                guard=guard,
+                principal=None,
+            )
+
+    def test_principal_without_guard_is_configuration_error(self):
+        self._make_counting_tool()
+
+        with self.assertRaises(ValueError):
+            ToolBroker(
+                self.root,
+                self.tools,
+                guard=None,
+                principal=self._principal("user"),
+            )
+
+    def test_legacy_unguarded_mode_still_operates_during_migration(self):
+        self._make_counting_tool(
+            requirement="process.execute",
+        )
+
+        broker = ToolBroker(
+            self.root,
+            self.tools,
+        )
+
+        result = broker.call(
+            "counting_tool",
+            {},
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["data"]["executions"],
+            1,
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

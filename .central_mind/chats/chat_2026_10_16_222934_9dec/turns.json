@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "text": "Hello! Can you code?",
+    "ts": 1792171783.243501,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Yes, I can help draft code snippets in various programming languages! However, I cannot execute or run code directly. If you have a specific programming problem or need help writing code in a particular language, feel free to ask, and I'll do my best to assist you. What programming language or problem are you working with?",
+    "ts": 1792171783.2444532,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

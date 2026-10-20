@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AI Friend",
+  "version": "0.1.0",
+  "identifier": "com.centralmind.app",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "chat",
+        "title": "Central Mind — Chat",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "url": "window-chat.html"
+      }
+    ],
+    "withGlobalTauri": true,
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ],
+    "resources": [
+      "../../section_1_central_mind/**/*",
+      "../../section_7_models/**/*",
+      "../../section_2_constitution/**/*",
+      "../../section_3_memory/**/*",
+      "../../section_4_chatbox/**/*",
+      "../../section_5_domains/**/*",
+      "../../section_8_tools/**/*"
+    ]
+  }
+}

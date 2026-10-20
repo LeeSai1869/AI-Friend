@@ -1,0 +1,50 @@
+[
+  {
+    "role": "user",
+    "text": "Hello! Can you code?",
+    "ts": 1792172687.301378,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "AI Friend has the capability to code, as declared by Central Mind's trusted Inventory. Specifically, Central Mind has declared the following coding capabilities: inspect_code, plan_code, write_code, test_code, debug_code, and verify_code, within the domain coder.",
+    "ts": 1792172687.30218,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "user",
+    "text": "Can you execute code and edit this AI Friend project?",
+    "ts": 1792172700.7777112,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "The capability to execute code must be checked. However, Central Mind has declared the capability to code, specifically through the model coder_model, which includes the capabilities to code and generate_code. As for editing the AI Friend project, Central Mind would need to use the tool filesystem to list, read, or write files, or the tool terminal to run commands.",
+    "ts": 1792172700.778492,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "user",
+    "text": "Write a Python function that adds two numbers.",
+    "ts": 1792172738.129484,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "You can use this function to add any two numbers (integers or floats). Let me know if you'd like me to help with anything else!",
+    "ts": 1792172738.130947,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

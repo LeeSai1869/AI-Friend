@@ -1,0 +1,34 @@
+[
+  {
+    "role": "user",
+    "text": "Hello",
+    "ts": 1791478651.344631,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — general\n\nHello! How can I assist you today?",
+    "ts": 1791478653.263787,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "user",
+    "text": "Hello was greeting. Remember this for future references",
+    "ts": 1791478698.360118,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — general\n\nHello! How can I assist you today?",
+    "ts": 1791478698.664688,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

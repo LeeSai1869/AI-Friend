@@ -1,0 +1,9 @@
+ORGAN = {
+    "name": "folders",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": ["create_folder"],
+    "keywords": [],
+    "entry_module": "folders.folders",
+    "entry_attr": "TOOLS",
+}

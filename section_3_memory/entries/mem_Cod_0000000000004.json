@@ -1,0 +1,41 @@
+{
+  "id": "mem_Cod_0000000000004",
+  "ts": 1791737127.598559,
+  "domain_created": "Cod",
+  "memory_class": "tested",
+  "originator": [
+    {
+      "type": "mind",
+      "name": "central"
+    }
+  ],
+  "kind": "success",
+  "title": "Added function add_numbers(a: int, b: int) -> int returning a+b with documentation",
+  "content": "Changed: _live_coding_test_20261011/calculator.py\nTask: Create _live_coding_test_20261011/calculator.py. Define a documented function add_numbers(a: int, b: int) -> int returning a+b. Do not modify any other files. Write it and run Python syntax verification. Report actual tool and verification results.\nSummary: Added function add_numbers(a: int, b: int) -> int returning a+b with documentation\nVerification: file writes and Python syntax check succeeded",
+  "tags": [
+    "coding",
+    "solution"
+  ],
+  "writers": [
+    "Cod"
+  ],
+  "readers": [
+    "Cod"
+  ],
+  "success_count": 1,
+  "failure_count": 0,
+  "last_success_ts": 1791737127.5989618,
+  "last_failure_ts": null,
+  "failures": [],
+  "cross_refs": [],
+  "context_memory": null,
+  "active_chat": null,
+  "score": 0.5,
+  "status": "active",
+  "superseded_by": null,
+  "supersedes": null,
+  "source_refs": [],
+  "derivation_note": "",
+  "derived_status": "active",
+  "source": {}
+}

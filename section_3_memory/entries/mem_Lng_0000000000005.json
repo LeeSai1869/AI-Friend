@@ -1,0 +1,41 @@
+{
+  "id": "mem_Lng_0000000000005",
+  "ts": 1791717391.756941,
+  "domain_created": "Lng",
+  "memory_class": "tested",
+  "originator": [],
+  "kind": "fact",
+  "title": "translate auto->ur: Good morning, how are you?",
+  "content": "صبح کی خوشی، آپ کیا حوالہ ہیں؟",
+  "tags": [
+    "translation",
+    "auto->ur"
+  ],
+  "writers": [
+    "Lng"
+  ],
+  "readers": [
+    "Lng"
+  ],
+  "success_count": 1,
+  "failure_count": 0,
+  "last_success_ts": 1791717391.7587378,
+  "last_failure_ts": null,
+  "failures": [],
+  "cross_refs": [],
+  "context_memory": null,
+  "active_chat": null,
+  "score": 0.5,
+  "status": "active",
+  "superseded_by": null,
+  "supersedes": null,
+  "source_refs": [],
+  "derivation_note": "",
+  "derived_status": "active",
+  "source": {
+    "type": "model",
+    "name": "aya-expanse:8b",
+    "capability": "translate",
+    "organ": "languages"
+  }
+}

@@ -1,0 +1,1206 @@
+schema_version: 2
+updated_at: '2026-10-11T00:00:00Z'
+maintainer: trainer
+llms:
+  qwen2.5-coder_7b:
+    display_name: Qwen2.5 Coder 7B
+    origin: Alibaba
+    lineage: qwen
+    kind: coder
+    version: '2.5'
+    size_gb: 4.7
+    context_tokens: 32768
+    ollama_tag: qwen2.5-coder:7b
+    installed: true
+    problem_solving:
+      style: direct
+      reasoning_leak: none
+      multi_step_quality: 0.65
+      planning_quality: 0.55
+      single_pass_quality: 0.85
+      ambiguity_handling: medium
+      instruction_following: 0.88
+      format_obedience: high
+      math_strength: 0.6
+      code_strength: 0.88
+      prose_strength: 0.55
+      translation_strength: 0.2
+    languages:
+      primary:
+      - en
+      strong:
+      - python
+      - javascript
+      - typescript
+      - bash
+      - sql
+      - json
+      weak:
+      - ur
+      - hi
+      - ar
+      - zh
+      - fr
+      - de
+      scripts:
+      - Latin
+    context_behavior:
+      effective_context_tokens: 16384
+      handling_long_context: ok
+      forgetting_pattern: loses early context after ~16K tokens
+      compression_quality: 0.6
+    failure_modes:
+    - hallucinates_library_apis
+    - adds_explanations_unasked
+    - weak_at_non_latin_output
+    - truncates_long_code_files
+    strengths:
+    - fast_code_generation
+    - clean_python_idioms
+    - reliable_json_output
+    - fast_iteration_loop
+    weaknesses:
+    - no_multilingual_output
+    - shallow_planning
+    - struggles_with_multi_file_refactors
+    best_tasks:
+    - capability: code_write
+      quality: 0.85
+      why: Trained on code corpora; fast iteration; correct Python idioms.
+    - capability: code_test
+      quality: 0.82
+      why: Good at writing unit tests from a spec.
+    - capability: json_extraction
+      quality: 0.9
+      why: High format obedience.
+    avoid_tasks:
+    - capability: translate
+      reason: Non-Latin output is unreliable.
+    - capability: reason
+      reason: No chain-of-thought; multi-step breaks down.
+    output_guard: none
+    eligible_domains:
+    - coding
+    - chat
+    excluded_domains:
+    - languages
+    - vision
+    - trading
+    recommended_role: fast_coder
+    hardware:
+      ram_gb: 6
+      load_time_sec: 5
+      tokens_per_sec_class: fast
+    notes: Default fast coder. Not a general-purpose chat model.
+  qwen3-coder_latest:
+    display_name: Qwen3 Coder (latest)
+    origin: Alibaba
+    lineage: qwen
+    kind: coder
+    version: '3'
+    size_gb: 18
+    context_tokens: 131072
+    ollama_tag: qwen3-coder:latest
+    installed: true
+    problem_solving:
+      style: direct
+      reasoning_leak: none
+      multi_step_quality: 0.88
+      planning_quality: 0.85
+      single_pass_quality: 0.9
+      ambiguity_handling: high
+      instruction_following: 0.92
+      format_obedience: high
+      math_strength: 0.78
+      code_strength: 0.95
+      prose_strength: 0.65
+      translation_strength: 0.25
+    languages:
+      primary:
+      - en
+      strong:
+      - python
+      - javascript
+      - typescript
+      - rust
+      - go
+      - c++
+      - sql
+      - bash
+      - json
+      weak:
+      - ur
+      - hi
+      - ar
+      - zh
+      scripts:
+      - Latin
+    context_behavior:
+      effective_context_tokens: 65536
+      handling_long_context: excellent
+      forgetting_pattern: retains context well past 64K
+      compression_quality: 0.8
+    failure_modes:
+    - slow_first_call
+    - sometimes_over_engineers
+    - unused_imports_in_final_output
+    strengths:
+    - multi_file_refactoring
+    - architecture_planning
+    - long_context_code_edits
+    - idiomatic_rust_go_typescript
+    - code_review
+    weaknesses:
+    - slow
+    - requires_18gb_ram
+    - weak_on_non_latin
+    best_tasks:
+    - capability: code_write
+      quality: 0.95
+      why: Best-in-class local coding; strong across languages.
+    - capability: code_plan
+      quality: 0.85
+      why: Can plan multi-file changes coherently.
+    - capability: code_review
+      quality: 0.88
+      why: Detects architecture issues, unused code, bad patterns.
+    - capability: debug
+      quality: 0.82
+      why: Traces stack traces effectively.
+    avoid_tasks:
+    - capability: translate
+      reason: Not multilingual.
+    - capability: chat
+      reason: Overkill; use a smaller chat model.
+    output_guard: none
+    eligible_domains:
+    - coding
+    excluded_domains:
+    - languages
+    - vision
+    - chat
+    recommended_role: heavy_coder
+    hardware:
+      ram_gb: 22
+      load_time_sec: 30
+      tokens_per_sec_class: medium
+    notes: The strongest local coder. Slow to load, fast once warm.
+  qwen3_30b:
+    display_name: Qwen3 30B
+    origin: Alibaba
+    lineage: qwen
+    kind: reasoner
+    version: '3'
+    size_gb: 18
+    context_tokens: 32768
+    ollama_tag: qwen3:30b
+    installed: true
+    problem_solving:
+      style: chain_of_thought
+      reasoning_leak: always
+      multi_step_quality: 0.92
+      planning_quality: 0.88
+      single_pass_quality: 0.7
+      ambiguity_handling: high
+      instruction_following: 0.78
+      format_obedience: medium
+      math_strength: 0.9
+      code_strength: 0.72
+      prose_strength: 0.8
+      translation_strength: 0.55
+    languages:
+      primary:
+      - en
+      - zh
+      strong:
+      - en
+      - zh
+      weak:
+      - ur
+      - hi
+      - ar
+      scripts:
+      - Latin
+      - Han
+    context_behavior:
+      effective_context_tokens: 16384
+      handling_long_context: ok
+      forgetting_pattern: reasoning chain consumes context; effective window reduced
+      compression_quality: 0.75
+    failure_modes:
+    - reasoning_leak_in_content_field
+    - overthinks_simple_tasks
+    - long_first_token_latency
+    - sometimes_never_reaches_final_answer
+    strengths:
+    - math
+    - multi_step_logic
+    - planning
+    - analysis
+    - chain_of_thought_internal
+    weaknesses:
+    - not_for_translation
+    - overthinks_simple_chat
+    - requires_stripping_reasoning_from_output
+    best_tasks:
+    - capability: reason
+      quality: 0.92
+      why: Chain-of-thought excels at multi-step problems.
+    - capability: plan
+      quality: 0.88
+      why: Can decompose a goal into a plan.
+    - capability: math
+      quality: 0.9
+      why: Strong arithmetic and algebra.
+    avoid_tasks:
+    - capability: translate
+      reason: Reasons about the translation instead of translating.
+    - capability: chat
+      reason: Overthinks; slow for short answers.
+    output_guard: strip_reasoning
+    eligible_domains:
+    - coding
+    - trading
+    - general
+    excluded_domains:
+    - languages
+    - vision
+    - chat
+    recommended_role: reasoning_heavy
+    hardware:
+      ram_gb: 22
+      load_time_sec: 30
+      tokens_per_sec_class: slow
+    notes: Excellent when the task requires deep thought. Useless for translation.
+  deepseek-r1_14b:
+    display_name: DeepSeek R1 14B
+    origin: DeepSeek
+    lineage: deepseek
+    kind: reasoner
+    version: r1
+    size_gb: 9
+    context_tokens: 65536
+    ollama_tag: deepseek-r1:14b
+    installed: true
+    problem_solving:
+      style: chain_of_thought
+      reasoning_leak: always
+      multi_step_quality: 0.9
+      planning_quality: 0.85
+      single_pass_quality: 0.68
+      ambiguity_handling: high
+      instruction_following: 0.75
+      format_obedience: medium
+      math_strength: 0.92
+      code_strength: 0.8
+      prose_strength: 0.72
+      translation_strength: 0.3
+    languages:
+      primary:
+      - en
+      - zh
+      strong:
+      - en
+      - zh
+      weak:
+      - ur
+      - hi
+      - ar
+      - fr
+      - de
+      scripts:
+      - Latin
+      - Han
+    context_behavior:
+      effective_context_tokens: 32768
+      handling_long_context: good
+      forgetting_pattern: handles long context better than qwen3:30b
+      compression_quality: 0.78
+    failure_modes:
+    - reasoning_leak_in_content_field
+    - very_long_first_token_latency
+    - refuses_ambiguous_prompts_sometimes
+    strengths:
+    - math
+    - chain_of_thought
+    - code_review
+    - debugging
+    - algorithm_design
+    weaknesses:
+    - slow
+    - not_for_chat
+    - not_multilingual
+    best_tasks:
+    - capability: reason
+      quality: 0.9
+      why: Best-in-class chain-of-thought at 14B.
+    - capability: debug
+      quality: 0.88
+      why: Traces and reasons about code faults well.
+    - capability: math
+      quality: 0.92
+      why: Strong competition-level math.
+    avoid_tasks:
+    - capability: translate
+      reason: Not multilingual; reasons instead of translating.
+    output_guard: strip_reasoning
+    eligible_domains:
+    - coding
+    - trading
+    - general
+    excluded_domains:
+    - languages
+    - vision
+    - chat
+    recommended_role: reasoning_medium
+    hardware:
+      ram_gb: 12
+      load_time_sec: 15
+      tokens_per_sec_class: medium
+    notes: Lighter than qwen3:30b, similar quality, better long context.
+  qwen3-vl_8b:
+    display_name: Qwen3 VL 8B
+    origin: Alibaba
+    lineage: qwen
+    kind: vision
+    version: '3'
+    size_gb: 6
+    context_tokens: 32768
+    ollama_tag: qwen3-vl:8b
+    installed: true
+    problem_solving:
+      style: direct
+      reasoning_leak: none
+      multi_step_quality: 0.7
+      planning_quality: 0.5
+      single_pass_quality: 0.85
+      ambiguity_handling: medium
+      instruction_following: 0.85
+      format_obedience: high
+      math_strength: 0.55
+      code_strength: 0.6
+      prose_strength: 0.8
+      translation_strength: 0.65
+    languages:
+      primary:
+      - en
+      - zh
+      strong:
+      - en
+      - zh
+      - ar
+      - hi
+      weak:
+      - ur
+      scripts:
+      - Latin
+      - Han
+      - Arabic
+      - Devanagari
+    context_behavior:
+      effective_context_tokens: 8192
+      handling_long_context: ok
+      forgetting_pattern: vision tokens consume context heavily
+      compression_quality: 0.65
+    failure_modes:
+    - small_text_ocr_errors
+    - hallucinates_details_in_busy_images
+    - struggles_with_handwriting
+    strengths:
+    - image_description
+    - ocr_latin
+    - ocr_han
+    - ocr_devanagari
+    - ocr_arabic_script
+    - chart_reading
+    - screenshot_reading
+    - diagram_understanding
+    weaknesses:
+    - not_a_coder
+    - limited_urdu_ocr
+    - small_context
+    best_tasks:
+    - capability: image_describe
+      quality: 0.88
+      why: Strong at describing images and diagrams.
+    - capability: image_ocr
+      quality: 0.85
+      why: Reads text in Latin, Han, Devanagari, and Arabic scripts.
+    - capability: chart_read
+      quality: 0.8
+      why: Understands charts and graphs.
+    avoid_tasks:
+    - capability: code_write
+      reason: Not a coder.
+    - capability: translate
+      reason: Only 2-3 languages strong.
+    output_guard: none
+    eligible_domains:
+    - vision
+    - languages
+    - trading
+    - image
+    - video
+    excluded_domains:
+    - coding
+    - chat
+    recommended_role: vision_default
+    hardware:
+      ram_gb: 8
+      load_time_sec: 10
+      tokens_per_sec_class: medium
+    notes: The only vision model. Handles OCR in 4 scripts.
+  gemma4_26b:
+    display_name: Gemma 4 26B
+    origin: Google
+    lineage: gemma
+    kind: multilingual
+    version: '4'
+    size_gb: 26
+    context_tokens: 8192
+    ollama_tag: gemma4:26b
+    installed: true
+    problem_solving:
+      style: hybrid
+      reasoning_leak: sometimes
+      multi_step_quality: 0.82
+      planning_quality: 0.75
+      single_pass_quality: 0.85
+      ambiguity_handling: high
+      instruction_following: 0.88
+      format_obedience: high
+      math_strength: 0.65
+      code_strength: 0.55
+      prose_strength: 0.88
+      translation_strength: 0.82
+    languages:
+      primary:
+      - en
+      strong:
+      - en
+      - fr
+      - de
+      - es
+      - pt
+      - it
+      - nl
+      - hi
+      - ar
+      - zh
+      weak:
+      - ur
+      scripts:
+      - Latin
+      - Cyrillic
+      - Arabic
+      - Han
+      - Devanagari
+    context_behavior:
+      effective_context_tokens: 6144
+      handling_long_context: ok
+      forgetting_pattern: starts losing detail after ~6K tokens
+      compression_quality: 0.7
+    failure_modes:
+    - reasoning_leak_on_ambiguous_prompts
+    - reads_context_too_carefully_sometimes
+    - over_narrates_on_simple_translations
+    strengths:
+    - multilingual_reading
+    - summarization
+    - translation_secondary
+    - european_languages
+    - hindi_arabic_chinese
+    - safety_alignment
+    weaknesses:
+    - reasoning_leak
+    - slow_26gb
+    - not_urdu_strong
+    - not_a_coder
+    best_tasks:
+    - capability: read
+      quality: 0.9
+      why: Strong at reading comprehension across languages.
+    - capability: summarize
+      quality: 0.88
+      why: Good summarization in many languages.
+    - capability: translate
+      quality: 0.8
+      why: Strong for European languages; Hindi/Arabic decent.
+    avoid_tasks:
+    - capability: code_write
+      reason: Not a coder.
+    output_guard: strip_reasoning
+    eligible_domains:
+    - languages
+    - general
+    - chat
+    excluded_domains:
+    - coding
+    - vision
+    recommended_role: multilingual_heavy
+    hardware:
+      ram_gb: 30
+      load_time_sec: 45
+      tokens_per_sec_class: slow
+    notes: Best multilingual reader. Reasoning leaks sometimes.
+  aya-expanse_8b:
+    display_name: Aya Expanse 8B
+    origin: Cohere
+    lineage: aya
+    kind: translator
+    version: expanse
+    size_gb: 5
+    context_tokens: 8192
+    ollama_tag: aya-expanse:8b
+    installed: true
+    problem_solving:
+      style: direct
+      reasoning_leak: none
+      multi_step_quality: 0.6
+      planning_quality: 0.5
+      single_pass_quality: 0.9
+      ambiguity_handling: medium
+      instruction_following: 0.92
+      format_obedience: high
+      math_strength: 0.4
+      code_strength: 0.3
+      prose_strength: 0.92
+      translation_strength: 0.95
+    languages:
+      primary:
+      - en
+      strong:
+      - en
+      - fr
+      - de
+      - es
+      - pt
+      - it
+      - ar
+      - hi
+      - ur
+      - zh
+      - ja
+      - ko
+      - he
+      - tr
+      - vi
+      - id
+      - nl
+      - pl
+      - ru
+      weak: []
+      scripts:
+      - Latin
+      - Arabic
+      - Devanagari
+      - Han
+      - Cyrillic
+      - Hebrew
+    context_behavior:
+      effective_context_tokens: 6144
+      handling_long_context: ok
+      forgetting_pattern: small context window
+      compression_quality: 0.75
+    failure_modes:
+    - short_context_window
+    - sometimes_formal_register_in_casual_text
+    - occasional_loanword_choice_imperfect
+    strengths:
+    - translation
+    - 23_languages
+    - direct_output_no_reasoning
+    - urdu_strong
+    - arabic_strong
+    - hindi_strong
+    - chinese_strong
+    - european_strong
+    weaknesses:
+    - not_a_coder
+    - not_a_reasoner
+    - small_context
+    best_tasks:
+    - capability: translate
+      quality: 0.95
+      why: Purpose-built for multilingual translation. Direct output.
+    - capability: read
+      quality: 0.85
+      why: Strong comprehension across 23 languages.
+    avoid_tasks:
+    - capability: code_write
+      reason: Not a coder.
+    - capability: reason
+      reason: Not a reasoning model.
+    output_guard: none
+    eligible_domains:
+    - languages
+    excluded_domains:
+    - coding
+    - vision
+    - trading
+    - chat
+    recommended_role: translation_default
+    hardware:
+      ram_gb: 7
+      load_time_sec: 8
+      tokens_per_sec_class: fast
+    notes: The translation specialist. Direct output. No reasoning leak.
+  llama3.1_8b:
+    display_name: Llama 3.1 8B
+    origin: Meta
+    lineage: llama
+    kind: general
+    version: '3.1'
+    size_gb: 4.9
+    context_tokens: 131072
+    ollama_tag: llama3.1:8b
+    installed: true
+    problem_solving:
+      style: direct
+      reasoning_leak: none
+      multi_step_quality: 0.72
+      planning_quality: 0.68
+      single_pass_quality: 0.85
+      ambiguity_handling: medium
+      instruction_following: 0.9
+      format_obedience: high
+      math_strength: 0.65
+      code_strength: 0.7
+      prose_strength: 0.85
+      translation_strength: 0.55
+    languages:
+      primary:
+      - en
+      strong:
+      - en
+      - es
+      - fr
+      - de
+      - pt
+      - it
+      weak:
+      - ur
+      - hi
+      - ar
+      - zh
+      scripts:
+      - Latin
+    context_behavior:
+      effective_context_tokens: 32768
+      handling_long_context: good
+      forgetting_pattern: loses detail after ~32K
+      compression_quality: 0.75
+    failure_modes:
+    - weak_non_latin_output
+    - sometimes_stiff_english
+    - refuses_edge_case_prompts
+    strengths:
+    - fast_english_chat
+    - reliable_json_output
+    - instruction_following
+    - long_context_handling
+    weaknesses:
+    - not_multilingual_strong
+    - not_a_coder_specialist
+    - not_vision
+    best_tasks:
+    - capability: chat
+      quality: 0.88
+      why: Fast, reliable English chat.
+    - capability: detect_language
+      quality: 0.72
+      why: Decent at detecting Latin-script languages.
+    - capability: json_extraction
+      quality: 0.88
+      why: High format obedience.
+    avoid_tasks:
+    - capability: translate
+      reason: Not strong in non-Latin scripts.
+    output_guard: none
+    eligible_domains:
+    - general
+    - chat
+    - languages
+    excluded_domains:
+    - vision
+    - coding
+    recommended_role: fast_chat
+    hardware:
+      ram_gb: 6
+      load_time_sec: 5
+      tokens_per_sec_class: fast
+    notes: Default fast chat. Good JSON. English-first.
+  llama3_latest:
+    display_name: Llama 3 (latest)
+    origin: Meta
+    lineage: llama
+    kind: general
+    version: '3'
+    size_gb: 4.7
+    context_tokens: 8192
+    ollama_tag: llama3:latest
+    installed: true
+    problem_solving:
+      style: direct
+      reasoning_leak: none
+      multi_step_quality: 0.65
+      planning_quality: 0.6
+      single_pass_quality: 0.8
+      ambiguity_handling: medium
+      instruction_following: 0.85
+      format_obedience: medium
+      math_strength: 0.55
+      code_strength: 0.65
+      prose_strength: 0.8
+      translation_strength: 0.4
+    languages:
+      primary:
+      - en
+      strong:
+      - en
+      - es
+      - fr
+      - de
+      weak:
+      - ur
+      - hi
+      - ar
+      - zh
+      scripts:
+      - Latin
+    context_behavior:
+      effective_context_tokens: 4096
+      handling_long_context: poor
+      forgetting_pattern: loses coherence past 4K
+      compression_quality: 0.55
+    failure_modes:
+    - short_effective_context
+    - superseded_by_llama3_1
+    strengths:
+    - fast
+    - reliable
+    weaknesses:
+    - superseded
+    - small_context
+    - no_reason_to_use_over_llama3_1
+    best_tasks:
+    - capability: chat
+      quality: 0.75
+      why: Only if llama3.1 is unavailable.
+    avoid_tasks:
+    - capability: chat
+      reason: Use llama3.1 instead; strictly better.
+    output_guard: none
+    eligible_domains:
+    - general
+    excluded_domains:
+    - languages
+    - coding
+    - vision
+    - trading
+    recommended_role: deprecated
+    hardware:
+      ram_gb: 6
+      load_time_sec: 5
+      tokens_per_sec_class: fast
+    notes: Superseded by llama3.1. Only use as last resort.
+  nomic-embed-text_latest:
+    display_name: Nomic Embed Text
+    origin: Nomic
+    lineage: nomic
+    kind: embedding
+    version: latest
+    size_gb: 0.27
+    context_tokens: 8192
+    ollama_tag: nomic-embed-text:latest
+    installed: true
+    problem_solving:
+      style: embedding
+      reasoning_leak: none
+      multi_step_quality: 0.0
+      planning_quality: 0.0
+      single_pass_quality: 0.9
+      ambiguity_handling: n/a
+      instruction_following: n/a
+      format_obedience: n/a
+      math_strength: 0.0
+      code_strength: 0.0
+      prose_strength: 0.0
+      translation_strength: 0.0
+    languages:
+      primary:
+      - en
+      strong:
+      - en
+      weak:
+      - all_non_english
+      scripts:
+      - Latin
+    context_behavior:
+      effective_context_tokens: 8192
+      handling_long_context: excellent
+      forgetting_pattern: n/a
+      compression_quality: 1.0
+    failure_modes:
+    - not_a_generator
+    strengths:
+    - fast_embedding
+    - good_for_memory_search
+    weaknesses:
+    - not_a_language_model
+    best_tasks:
+    - capability: embed
+      quality: 0.9
+      why: Purpose-built for embedding; fast; small.
+    avoid_tasks:
+    - capability: chat
+      reason: Does not generate text.
+    output_guard: none
+    eligible_domains:
+    - memory
+    excluded_domains:
+    - coding
+    - languages
+    - vision
+    - chat
+    recommended_role: embedding_default
+    hardware:
+      ram_gb: 0.5
+      load_time_sec: 1
+      tokens_per_sec_class: fast
+    notes: Used only for memory vector search.
+  mistral_7b:
+    display_name: Mistral 7B
+    origin: Mistral AI
+    lineage: mistral
+    kind: general
+    version: '0.3'
+    size_gb: 4.1
+    context_tokens: 32768
+    ollama_tag: mistral:7b
+    installed: false
+    notes: Declared but not installed. Consider for utility JSON tasks.
+    eligible_domains:
+    - general
+    excluded_domains:
+    - languages
+    - coding
+    - vision
+    recommended_role: utility_alternative
+  phi3_mini:
+    display_name: Phi-3 Mini
+    origin: Microsoft
+    lineage: phi
+    kind: small
+    version: '3'
+    size_gb: 2.3
+    context_tokens: 4096
+    ollama_tag: phi3:mini
+    installed: false
+    notes: Tiny. Consider for fast detection tasks.
+    eligible_domains:
+    - general
+    excluded_domains:
+    - languages
+    - coding
+    - vision
+    recommended_role: utility_tiny
+  qwen2.5_7b:
+    display_name: Qwen2.5 7B (base)
+    origin: Alibaba
+    lineage: qwen
+    kind: general
+    version: '2.5'
+    size_gb: 4.7
+    context_tokens: 32768
+    ollama_tag: qwen2.5:7b
+    installed: false
+    notes: Base generalist variant. Not currently installed.
+    eligible_domains:
+    - general
+    excluded_domains:
+    - coding
+    - vision
+    recommended_role: general_alternative
+  madlad400_3b_mt:
+    display_name: MADLAD-400 3B MT
+    kind: translator
+    installed: true
+    generative: true
+    provider: transformers
+    model_name: /Users/jhanzeebakbar/.cache/huggingface/hub/models--google--madlad400-3b-mt/snapshots/fa184c675da0b5c9e1c8694fccd4e12e2d422094
+    task: translation
+    local_files_only: true
+    best_tasks:
+    - capability: translate
+      quality: 0.82
+    - capability: read_multilingual
+      quality: 0.72
+    eligible_domains:
+    - languages
+    excluded_domains:
+    - coding
+    - trading
+    - vision
+    - image
+    - video
+    notes: Local MADLAD-400 translation resource. Not a general chat/reasoning model.
+  flux2_klein_4b_mflux:
+    display_name: FLUX.2 Klein 4B MFLUX 4-bit
+    kind: image_generation
+    installed: true
+    generative: false
+    provider: mflux
+    model_name: /Users/jhanzeebakbar/Models/FLUX.2-klein-4B-mflux-4bit
+    best_tasks:
+    - capability: render
+      quality: 0.9
+    - capability: generate_image
+      quality: 0.9
+    eligible_domains:
+    - image
+    excluded_domains:
+    - chat
+    - coding
+    - languages
+    - trading
+    - vision
+    - video
+    notes: Verified local MFLUX image model. Runtime registered; no new AI Friend image tool activated in this milestone.
+domain_assignments:
+  languages:
+    translate:
+      priority:
+      - aya-expanse_8b
+      - gemma4_26b
+      - llama3.1_8b
+      required_quality: 0.85
+      output_guard: none
+    read:
+      priority:
+      - gemma4_26b
+      - aya-expanse_8b
+      - llama3.1_8b
+      required_quality: 0.8
+      output_guard: strip_reasoning
+    write:
+      priority:
+      - gemma4_26b
+      - llama3.1_8b
+      - aya-expanse_8b
+      required_quality: 0.8
+      output_guard: strip_reasoning
+    detect:
+      priority:
+      - llama3.1_8b
+      - gemma4_26b
+      required_quality: 0.65
+      output_guard: none
+  coding:
+    plan:
+      priority:
+      - deepseek-r1_14b
+      - qwen3-coder_latest
+      - qwen3_30b
+      required_quality: 0.8
+      output_guard: strip_reasoning
+    write:
+      priority:
+      - qwen3-coder_latest
+      - qwen2.5-coder_7b
+      required_quality: 0.9
+      output_guard: none
+    test:
+      priority:
+      - qwen2.5-coder_7b
+      required_quality: 0.8
+      output_guard: none
+    debug:
+      priority:
+      - deepseek-r1_14b
+      - qwen3_30b
+      - qwen3-coder_latest
+      required_quality: 0.85
+      output_guard: strip_reasoning
+  chat:
+    answer:
+      priority:
+      - llama3.1_8b
+      - qwen2.5-coder_7b
+      - gemma4_26b
+      required_quality: 0.75
+      output_guard: none
+    reason:
+      priority:
+      - qwen3_30b
+      - deepseek-r1_14b
+      required_quality: 0.85
+      output_guard: none
+  vision:
+    image_describe:
+      priority:
+      - qwen3-vl_8b
+      required_quality: 0.8
+      output_guard: none
+    image_ocr:
+      priority:
+      - qwen3-vl_8b
+      required_quality: 0.8
+      output_guard: none
+  trading:
+    analyze:
+      priority:
+      - deepseek-r1_14b
+      - qwen3_30b
+      required_quality: 0.85
+      output_guard: strip_reasoning
+    backtest:
+      priority:
+      - qwen2.5-coder_7b
+      required_quality: 0.85
+      output_guard: none
+  image:
+    describe:
+      priority:
+      - qwen3-vl_8b
+      required_quality: 0.8
+      output_guard: none
+    generate:
+      priority: []
+      required_quality: 0.0
+  video:
+    describe:
+      priority:
+      - qwen3-vl_8b
+      required_quality: 0.75
+      output_guard: none
+    generate:
+      priority: []
+      required_quality: 0.0
+  memory:
+    embed:
+      priority:
+      - nomic-embed-text_latest
+      required_quality: 0.85
+      output_guard: none
+  general:
+    reason:
+      priority:
+      - qwen3_30b
+      - deepseek-r1_14b
+      - gemma4_26b
+      - llama3_latest
+      - llama3.1_8b
+      output_guard: none
+      selection_semantics: bootstrap_hint_only
+      authority: none
+      structured_output: json
+output_guards:
+  none:
+    description: Use output as returned.
+  strip_reasoning:
+    description: Remove leaked chain-of-thought from the model output.
+    markers_start:
+    - thinking...
+    - let me think
+    - let's think
+    - let's tackle
+    - i should
+    - i will
+    - i need to
+    - the user wants
+    - the user is asking
+    - first,
+    - wait,
+    - hmm,
+    - actually,
+    markers_end:
+    - '...done thinking'
+    - '...done'
+    fallback: last_clean_line
+    min_acceptable_length: 3
+    reject_if:
+    - contains_reasoning_markers
+    - shorter_than_3_chars
+    - only_bullet_points
+  strip_markdown:
+    description: Remove markdown decoration (asterisks, backticks).
+    rules:
+    - remove **bold** and *italic*
+    - remove backtick code fences when not a code task
+routing:
+  max_attempts_per_capability: 3
+  on_model_failure:
+  - try_next_in_priority
+  - after_all_fail_escalate_to_trainer
+  on_output_guard_failure:
+  - try_next_in_priority
+  on_all_models_fail:
+    action: escalate
+    message_to: trainer
+    record_as: failure
+  memory_preference:
+    enabled: true
+    match_on:
+    - domain
+    - capability
+    - 'input_similarity_threshold: 0.85'
+    fallback_to_llm_if_memory_stale_days: 90
+  roster_reordering:
+    enabled: true
+    evidence_source: memory.source_scores
+    min_evidence_count: 3
+    do_not_promote_if:
+    - any_recent_failure
+source_schema:
+  required_fields:
+  - type
+  types:
+    model:
+      fields:
+      - name
+      - capability
+      - organ
+      - quality_score
+    web:
+      fields:
+      - url
+      - fetched_at
+      - http_status
+    user:
+      fields:
+      - name
+      - given_at
+    memory:
+      fields:
+      - refs
+    file:
+      fields:
+      - path
+      - hash
+  verification:
+    required_for:
+    - tested
+    - derived
+    optional_for:
+    - raw
+runtime_inventory:
+  mlx:
+    installed: true
+    version: 0.32.0
+    status: provider_ready_no_registered_model
+  whisperkit:
+    installed: true
+    cli: /opt/homebrew/bin/whisperkit-cli
+    status: provider_ready_model_not_registered
+  mflux:
+    installed: true
+    cli: /Library/Frameworks/Python.framework/Versions/3.14/bin/mflux-generate
+    status: provider_ready
+  transformers:
+    installed: true
+    status: provider_ready
+  hunyuan_mt_chimera_7b:
+    installed: false
+    status: incomplete_snapshot
+    reason: Metadata/index present but model weight shards were not present in inspected snapshot.

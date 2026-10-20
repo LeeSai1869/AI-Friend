@@ -1,0 +1,34 @@
+[
+  {
+    "role": "user",
+    "text": "Can you read this whole project?",
+    "ts": 1791465449.8560362,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — general\n\nQuestion: Can you read this whole project?\n\nI have no relevant stored memory yet.\n\nThe reasoning/model provider is currently independent from the brain.",
+    "ts": 1791465449.856354,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "user",
+    "text": "Can you generate code to get access to full project code and the ability to write/edit it as per my needs?",
+    "ts": 1791465521.784866,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — coding\n\nQuestion: Can you generate code to get access to full project code and the ability to write/edit it as per my needs?\n\nI have no relevant stored memory yet.\n\nThe reasoning/model provider is currently independent from the brain.",
+    "ts": 1791465521.78627,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

@@ -1,0 +1,9 @@
+ORGAN = {
+    "name": "web",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": ["web_search", "web_fetch"],
+    "keywords": [],
+    "entry_module": "web.web",
+    "entry_attr": "TOOLS",
+}

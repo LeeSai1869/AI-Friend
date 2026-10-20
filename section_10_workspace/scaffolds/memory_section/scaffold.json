@@ -1,0 +1,45 @@
+{
+  "name": "memory_section",
+  "description": "Section 3 memory system - standalone numbered store with originator tracking, cross-refs, verification state, and failure ledger.",
+  "dirs": [
+    "section_3_memory",
+    "section_3_memory/entries"
+  ],
+  "files": [
+    {
+      "path": "section_3_memory/__init__.py",
+      "source": "__init__.py",
+      "overwrite": true
+    },
+    {
+      "path": "section_3_memory/config.py",
+      "source": "config.py",
+      "overwrite": true
+    },
+    {
+      "path": "section_3_memory/entry.py",
+      "source": "entry.py",
+      "overwrite": true
+    },
+    {
+      "path": "section_3_memory/store.py",
+      "source": "store.py",
+      "overwrite": true
+    },
+    {
+      "path": "section_3_memory/index.py",
+      "source": "index.py",
+      "overwrite": true
+    },
+    {
+      "path": "section_3_memory/api.py",
+      "source": "api.py",
+      "overwrite": true
+    },
+    {
+      "path": "section_3_memory/readme.md",
+      "source": "readme.md",
+      "overwrite": true
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>AI Friend — Trading</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="trading-window">
+    <header class="specialist-topbar">
+      <div>
+        <strong>Trading Buddy</strong>
+        <span class="dim"> · specialist workspace</span>
+      </div>
+
+      <button id="btn-back-chat" class="sidebar-new">
+        Chat
+      </button>
+    </header>
+
+    <main class="trading-main">
+      <section class="trading-workspace">
+        <div class="workspace-placeholder">
+          <h2>Trading Workspace</h2>
+          <p>
+            Charts, scanner state, signals, market context and
+            authorized trading controls will live here.
+          </p>
+          <p class="dim">
+            Trading authority remains enforced by Central Mind and Guard.
+          </p>
+        </div>
+      </section>
+
+      <aside class="chat-panel">
+        <div class="chat-topbar">
+          <div class="chat-topic">
+            Trading <span class="dim">· trading</span>
+          </div>
+        </div>
+
+        <div class="chat-body">
+          <div class="chat-thread" id="chat-thread">
+            <div class="msg msg-mind">
+              <div class="msg-role">Central Mind</div>
+              <div class="msg-body">
+                Trading workspace ready.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="intent-bar" id="intent-bar"></div>
+
+        <div class="input-bar">
+          <textarea
+            id="input"
+            placeholder="Ask about the market, strategy or trading system…"
+            rows="1"
+          ></textarea>
+
+          <button class="send-btn" id="send">
+            Send ↑
+          </button>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="intents.js"></script>
+  <script type="module" src="trading.js"></script>
+</body>
+</html>

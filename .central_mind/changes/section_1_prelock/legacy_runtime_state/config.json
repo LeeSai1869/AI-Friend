@@ -1,0 +1,12 @@
+{
+  "topic_lock": "strict",
+  "chats_dir": ".central_mind/chats",
+  "save_turns": true,
+  "block_rejected_proposals": true,
+  "rejected_similarity_threshold": 0.6,
+  "model_provider": "ollama",
+  "model_api_url": "http://localhost:11434",
+  "model_api_key": "",
+  "model_name": "qwen2.5-coder:7b",
+  "model_timeout": 60
+}

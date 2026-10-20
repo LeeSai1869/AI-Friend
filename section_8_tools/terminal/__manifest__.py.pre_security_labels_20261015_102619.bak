@@ -1,0 +1,9 @@
+ORGAN = {
+    "name": "terminal",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": ["run_command"],
+    "keywords": [],
+    "entry_module": "terminal.terminal",
+    "entry_attr": "TOOLS",
+}

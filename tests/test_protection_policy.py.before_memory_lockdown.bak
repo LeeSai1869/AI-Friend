@@ -1,0 +1,87 @@
+import sys
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BASE_DIR = PROJECT_ROOT / "section_8_tools" / "_base"
+sys.path.insert(0, str(BASE_DIR))
+
+from protection import (  # noqa: E402
+    ProtectedPathError,
+    assert_write_allowed,
+    is_protected_target,
+)
+
+
+class ProtectionPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = TemporaryDirectory()
+        self.root = Path(self.temp.name).resolve()
+        (self.root / "section_1_central_mind").mkdir()
+        (self.root / "section_2_constitution").mkdir()
+        (self.root / "section_3_memory").mkdir()
+        (self.root / "workspace").mkdir()
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_blocks_central_mind(self):
+        self.assertTrue(is_protected_target(
+            self.root, "section_1_central_mind/main.py"
+        ))
+
+    def test_blocks_constitution_and_intended_design(self):
+        self.assertTrue(is_protected_target(
+            self.root, "section_2_constitution/design.md"
+        ))
+
+    def test_blocks_actual_design_for_ordinary_tools(self):
+        self.assertTrue(is_protected_target(
+            self.root, "section_2_constitution/design_actual.md"
+        ))
+
+    def test_designer_can_write_only_actual_design(self):
+        self.assertFalse(is_protected_target(
+            self.root, "section_2_constitution/design_actual.md",
+            actor="designer",
+        ))
+        self.assertTrue(is_protected_target(
+            self.root, "section_2_constitution/design.md",
+            actor="designer",
+        ))
+
+    def test_allows_ordinary_workspace_file(self):
+        target = assert_write_allowed(self.root, "workspace/new.py")
+        self.assertEqual(target, self.root / "workspace" / "new.py")
+
+    def test_blocks_path_escape(self):
+        self.assertTrue(is_protected_target(self.root, "../outside.txt"))
+
+    def test_blocks_symlink_into_protected_section(self):
+        link = self.root / "workspace" / "protected_link"
+        try:
+            link.symlink_to(
+                self.root / "section_1_central_mind",
+                target_is_directory=True,
+            )
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"Symlinks unavailable: {exc}")
+        self.assertTrue(is_protected_target(
+            self.root, "workspace/protected_link/main.py"
+        ))
+
+    def test_blocks_security_denial_directory(self):
+        self.assertTrue(is_protected_target(
+            self.root, "section_3_memory/security/denials.json"
+        ))
+
+    def test_assert_raises_for_protected_target(self):
+        with self.assertRaises(ProtectedPathError):
+            assert_write_allowed(
+                self.root, "section_2_constitution/design.md"
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

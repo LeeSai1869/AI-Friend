@@ -1,0 +1,22 @@
+{
+  "natural": [
+    {"code": "en", "name": "English",   "native": "English",   "script": "Latin"},
+    {"code": "ur", "name": "Urdu",      "native": "اردو",      "script": "Arabic"},
+    {"code": "zh", "name": "Mandarin",  "native": "中文",       "script": "Han"},
+    {"code": "hi", "name": "Hindi",     "native": "हिन्दी",     "script": "Devanagari"},
+    {"code": "es", "name": "Spanish",   "native": "Español",   "script": "Latin"},
+    {"code": "ar", "name": "Arabic",    "native": "العربية",   "script": "Arabic"},
+    {"code": "fr", "name": "French",    "native": "Français",  "script": "Latin"},
+    {"code": "de", "name": "German",    "native": "Deutsch",   "script": "Latin"}
+  ],
+  "technical": [
+    {"code": "py",   "name": "Python"},
+    {"code": "pine", "name": "Pine Script"},
+    {"code": "js",   "name": "JavaScript"},
+    {"code": "rs",   "name": "Rust"},
+    {"code": "sql",  "name": "SQL"},
+    {"code": "json", "name": "JSON"},
+    {"code": "sh",   "name": "Bash"},
+    {"code": "html", "name": "HTML"}
+  ]
+}

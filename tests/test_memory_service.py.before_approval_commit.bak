@@ -1,0 +1,87 @@
+import sys
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from section_3_memory.api import Memory
+from section_3_memory.service import MemoryService
+
+
+class MemoryServiceBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = TemporaryDirectory()
+        self.memory = Memory(root=Path(self.temp.name))
+        self.service = MemoryService(self.memory)
+
+        self.coding = self.service.client(
+            actor="coding",
+            role="domain",
+            domain="Cod",
+        )
+        self.trading = self.service.client(
+            actor="trading",
+            role="domain",
+            domain="Trd",
+        )
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_client_does_not_expose_storage(self):
+        self.assertFalse(hasattr(self.coding, "memory"))
+        self.assertFalse(hasattr(self.coding, "store"))
+
+    def test_domain_can_contribute_knowledge_to_another_domain(self):
+        mem_id = self.coding.remember_raw(
+            domain="Trd",
+            title="Cross-domain learning",
+            content="A coding organ may contribute relevant trading knowledge.",
+        )
+        self.assertTrue(self.memory.exists(mem_id))
+        self.assertEqual(self.memory.get(mem_id).domain_created, "Trd")
+
+    def test_domains_can_recall_shared_knowledge(self):
+        mem_id = self.coding.remember_raw(
+            domain="Cod",
+            title="Shared learning example",
+            content="This knowledge may also help trading.",
+        )
+        results = self.trading.recall(
+            query="Shared learning example",
+            limit=10,
+        )
+        self.assertIn(mem_id, [entry["id"] for entry in results])
+
+    def test_domain_client_has_no_delete_or_retire_operation(self):
+        for operation in ("delete", "delete_memory", "retire", "supersede"):
+            with self.subTest(operation=operation):
+                self.assertFalse(hasattr(self.coding, operation))
+
+    def test_domain_can_propose_deletion_without_deleting(self):
+        mem_id = self.coding.remember_raw(
+            domain="Cod",
+            title="Keep this entry",
+            content="A deletion proposal must not erase this.",
+        )
+        proposal = self.coding.propose_delete(
+            mem_id,
+            reason="Testing the authorization workflow",
+        )
+        self.assertEqual(proposal["status"], "pending")
+        self.assertTrue(self.memory.exists(mem_id))
+
+    def test_client_can_write_to_its_own_domain(self):
+        mem_id = self.coding.remember_raw(
+            domain="Cod",
+            title="Coding test entry",
+            content="A test-only memory entry.",
+        )
+        self.assertTrue(self.memory.exists(mem_id))
+        self.assertEqual(self.memory.get(mem_id).domain_created, "Cod")
+
+
+if __name__ == "__main__":
+    unittest.main()

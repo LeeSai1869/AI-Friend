@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "text": "Hello",
+    "ts": 1791474852.96421,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — ANALYSIS\nDomain: general\n\nProposed reasoning path:\n1. [understand] Understand the objective.\n2. [plan] Create a plan.\n3. [execute] Execute appropriate capabilities.\n4. [verify] Verify the result.",
+    "ts": 1791474852.965191,
+    "action": "analyze",
+    "verified": [],
+    "rejected": []
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "text": "Hello.",
+    "ts": 1792167237.000222,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  }
+]

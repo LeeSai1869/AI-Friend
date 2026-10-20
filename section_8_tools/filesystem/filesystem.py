@@ -1,0 +1,228 @@
+"""Filesystem tools.
+
+list_files    - list a folder
+read_file     - read a file
+search_files  - find files by substring
+write_file    - write a file (creates parent folders)
+
+Guards:
+  - Refuses writes to section_0_central_mind or section_1_central_mind.
+  - Refuses to MODIFY an existing .md file.
+    (New .md files may be created. Existing ones may not be changed.)
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, List
+
+from _base.tool import Tool
+from guard.contract import ToolEffect
+from _base.paths import missing_parent_directories
+
+
+IGNORED_DIRS = {
+    ".git", ".venv", "venv", "__pycache__", ".central_mind",
+    "node_modules", ".mypy_cache", ".pytest_cache", ".next",
+    "dist", "build", "target",
+}
+
+IGNORED_EXTS = {
+    ".pyc", ".pyo", ".so", ".dylib", ".dll", ".exe", ".o",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf",
+    ".zip", ".tar", ".gz", ".bz2", ".7z",
+    ".mp3", ".mp4", ".mov", ".wav", ".ogg", ".lock",
+}
+
+MAX_FILE_BYTES = 500_000
+
+
+class ListFiles(Tool):
+    name = "list_files"
+    description = "List files and folders in a directory of the workspace."
+    parameters = {"path": "relative path from workspace root (default '')"}
+
+    def effects(self, args: Dict[str, Any]) -> tuple[ToolEffect, ...]:
+        rel = (args.get("path") or "").strip()
+        target = self._resolve(rel)
+        return (
+            ToolEffect(
+                action="read",
+                target=str(target),
+                scope="children",
+            ),
+        )
+
+    def call(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        rel = (args.get("path") or "").strip()
+        try:
+            target = self._resolve(rel)
+        except ValueError as e:
+            return {"ok": False, "data": None, "error": str(e)}
+        if not target.exists() or not target.is_dir():
+            return {"ok": False, "data": None, "error": f"not a directory: {rel}"}
+
+        entries = []
+        try:
+            for entry in sorted(target.iterdir())[:500]:
+                if entry.name.startswith("."):
+                    continue
+                if entry.name in IGNORED_DIRS:
+                    continue
+                if entry.is_dir():
+                    entries.append({
+                        "name": entry.name, "type": "dir",
+                        "path": str(entry.relative_to(self.workspace_root)),
+                    })
+                else:
+                    if entry.suffix.lower() in IGNORED_EXTS:
+                        continue
+                    entries.append({
+                        "name": entry.name, "type": "file",
+                        "path": str(entry.relative_to(self.workspace_root)),
+                        "size": entry.stat().st_size,
+                    })
+        except Exception as e:
+            return {"ok": False, "data": None, "error": str(e)}
+        return {"ok": True, "data": {"path": rel, "entries": entries}, "error": None}
+
+
+class ReadFile(Tool):
+    name = "read_file"
+    description = "Read the contents of a text file in the workspace."
+    parameters = {"path": "relative path from workspace root"}
+
+    def effects(self, args: Dict[str, Any]) -> tuple[ToolEffect, ...]:
+        rel = (args.get("path") or "").strip()
+        if not rel:
+            raise ValueError("path is required")
+        target = self._resolve(rel)
+        return (
+            ToolEffect(
+                action="read",
+                target=str(target),
+                scope="exact",
+            ),
+        )
+
+    def call(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        rel = (args.get("path") or "").strip()
+        if not rel:
+            return {"ok": False, "data": None, "error": "path is required"}
+        try:
+            target = self._resolve(rel)
+        except ValueError as e:
+            return {"ok": False, "data": None, "error": str(e)}
+        if not target.exists() or not target.is_file():
+            return {"ok": False, "data": None, "error": f"not found: {rel}"}
+        if target.stat().st_size > MAX_FILE_BYTES:
+            return {"ok": False, "data": None, "error": "file too large"}
+        try:
+            content = target.read_text(encoding="utf-8", errors="replace")
+        except Exception as e:
+            return {"ok": False, "data": None, "error": str(e)}
+        return {"ok": True, "data": {"path": rel, "size": target.stat().st_size, "content": content}, "error": None}
+
+
+class SearchFiles(Tool):
+    name = "search_files"
+    description = "Find files in the workspace whose name contains a substring."
+    parameters = {"pattern": "substring to search for (case-insensitive)", "max": "max results (default 50)"}
+
+    def effects(self, args: Dict[str, Any]) -> tuple[ToolEffect, ...]:
+        pattern = (args.get("pattern") or "").strip()
+        if not pattern:
+            raise ValueError("pattern is required")
+        return (
+            ToolEffect(
+                action="read",
+                target=str(self.workspace_root),
+                scope="tree",
+            ),
+        )
+
+    def call(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        pattern = (args.get("pattern") or "").lower().strip()
+        if not pattern:
+            return {"ok": False, "data": None, "error": "pattern is required"}
+        max_results = int(args.get("max") or 50)
+        matches = []
+        try:
+            for path in self.workspace_root.rglob("*"):
+                if len(matches) >= max_results:
+                    break
+                if any(part in IGNORED_DIRS for part in path.parts):
+                    continue
+                if path.name.startswith("."):
+                    continue
+                if path.is_file() and pattern in path.name.lower():
+                    if path.suffix.lower() in IGNORED_EXTS:
+                        continue
+                    matches.append(str(path.relative_to(self.workspace_root)))
+        except Exception as e:
+            return {"ok": False, "data": None, "error": str(e)}
+        return {"ok": True, "data": {"pattern": pattern, "matches": matches}, "error": None}
+
+
+class WriteFile(Tool):
+    name = "write_file"
+    description = "Write content to a file. Creates parent folders. Refuses to modify existing .md files."
+    parameters = {"path": "relative path from workspace root", "content": "the text to write"}
+
+    def effects(self, args: Dict[str, Any]) -> tuple[ToolEffect, ...]:
+        rel = (args.get("path") or "").strip()
+        if not rel:
+            raise ValueError("path is required")
+        target = self._resolve(rel)
+        action = "write" if target.exists() else "create"
+
+        effects = [
+            ToolEffect(
+                action="create",
+                target=str(parent),
+                scope="exact",
+            )
+            for parent in missing_parent_directories(
+                self.workspace_root,
+                target,
+            )
+        ]
+
+        effects.append(
+            ToolEffect(
+                action=action,
+                target=str(target),
+                scope="exact",
+            )
+        )
+
+        return tuple(effects)
+
+    def call(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        rel = (args.get("path") or "").strip()
+        content = args.get("content", "")
+        if not rel:
+            return {"ok": False, "data": None, "error": "path is required"}
+
+        try:
+            target = self._resolve(rel)
+        except (ValueError, PermissionError) as e:
+            return {"ok": False, "data": None, "error": str(e)}
+
+        # Option C: .md files may be created if they do not exist,
+        # but existing .md files may never be modified.
+        if str(target).lower().endswith(".md") and target.exists():
+            return {
+                "ok": False,
+                "data": None,
+                "error": "refused: cannot modify an existing .md file",
+            }
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        except Exception as e:
+            return {"ok": False, "data": None, "error": str(e)}
+        return {"ok": True, "data": {"path": rel, "bytes_written": len(content)}, "error": None}
+
+
+TOOLS = [ListFiles, ReadFile, SearchFiles, WriteFile]

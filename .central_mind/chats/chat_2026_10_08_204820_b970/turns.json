@@ -1,0 +1,34 @@
+[
+  {
+    "role": "user",
+    "text": "Can see full project that i have?",
+    "ts": 1791474500.219968,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — general\n\nI do not have access to any specific projects or files that you may be referring to. If you provide more details or context, I may be able to assist you further.",
+    "ts": 1791474505.705508,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "user",
+    "text": "Read this project",
+    "ts": 1791474562.3253372,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — ANALYSIS\nDomain: general\n\nProposed reasoning path:\n1. [understand] Understand the objective.\n2. [plan] Create a plan.\n3. [execute] Execute appropriate capabilities.\n4. [verify] Verify the result.",
+    "ts": 1791474562.326968,
+    "action": "analyze",
+    "verified": [],
+    "rejected": []
+  }
+]

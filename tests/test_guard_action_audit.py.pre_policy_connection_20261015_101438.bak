@@ -1,0 +1,200 @@
+from pathlib import Path
+import tempfile
+import unittest
+
+from section_1_central_mind.guard.contract import (
+    GuardComponent,
+    GuardPrincipal,
+    GuardRequest,
+)
+from section_1_central_mind.guard.layer import GuardLayer
+
+
+class _Memory:
+    def search(self, *args, **kwargs):
+        return []
+
+
+class GuardActionAuditTests(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name).resolve()
+
+        # Preserve the legacy directory assumptions required by GuardLayer
+        # while testing only the new universal action socket.
+        (self.root / "section_0_central_mind").mkdir(parents=True)
+
+        self.guards = GuardLayer(
+            self.root,
+            _Memory(),
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _request(
+        self,
+        *,
+        principal=None,
+        component=None,
+        operation="read",
+        resource="workspace.file",
+        target="workspace/example.txt",
+    ):
+        return GuardRequest(
+            principal=principal or GuardPrincipal(
+                principal_id="central_mind",
+                kind="internal",
+                source="runtime",
+            ),
+            component=component or GuardComponent(
+                kind="tool",
+                name="read_file",
+            ),
+            operation=operation,
+            resource=resource,
+            target=target,
+        )
+
+    def test_malformed_request_is_blocked(self):
+        verdict = self.guards.audit_action({
+            "operation": "read",
+        })
+
+        self.assertEqual(verdict["verdict"], "BLOCK")
+        self.assertIn("Malformed", verdict["reason"])
+
+    def test_malformed_request_is_audited(self):
+        self.guards.audit_action(None)
+
+        self.assertEqual(len(self.guards.action_audit), 1)
+        self.assertIsNone(
+            self.guards.action_audit[0]["request"]
+        )
+        self.assertEqual(
+            self.guards.action_audit[0]["verdict"]["verdict"],
+            "BLOCK",
+        )
+
+    def test_unauthenticated_human_is_blocked(self):
+        request = self._request(
+            principal=GuardPrincipal(
+                principal_id="user.example",
+                kind="human",
+                role="user",
+                authenticated=False,
+                source="auth_service",
+            )
+        )
+
+        verdict = self.guards.audit_action(request)
+
+        self.assertEqual(verdict["verdict"], "BLOCK")
+        self.assertIn("not authenticated", verdict["reason"])
+
+    def test_authenticated_admin_is_not_automatically_authorized(self):
+        request = self._request(
+            principal=GuardPrincipal(
+                principal_id="admin.example",
+                kind="human",
+                role="administrator",
+                authenticated=True,
+                source="auth_service",
+            )
+        )
+
+        verdict = self.guards.audit_action(request)
+
+        self.assertEqual(verdict["verdict"], "BLOCK")
+        self.assertIn("No explicit", verdict["reason"])
+
+    def test_authenticated_trainer_is_not_automatically_authorized(self):
+        request = self._request(
+            principal=GuardPrincipal(
+                principal_id="trainer.example",
+                kind="human",
+                role="trainer",
+                authenticated=True,
+                source="auth_service",
+            )
+        )
+
+        verdict = self.guards.audit_action(request)
+
+        self.assertEqual(verdict["verdict"], "BLOCK")
+
+    def test_internal_central_mind_is_not_human_authority(self):
+        request = self._request(
+            principal=GuardPrincipal(
+                principal_id="central_mind",
+                kind="internal",
+                role="",
+                authenticated=False,
+                source="runtime",
+            ),
+            component=GuardComponent(
+                kind="central_mind",
+                name="central_mind",
+            ),
+            operation="approve",
+            resource="memory",
+        )
+
+        verdict = self.guards.audit_action(request)
+
+        self.assertEqual(verdict["verdict"], "BLOCK")
+
+    def test_unknown_future_tool_fails_closed(self):
+        request = self._request(
+            component=GuardComponent(
+                kind="tool",
+                name="future_tool_100",
+            ),
+            operation="execute",
+            resource="future.resource",
+        )
+
+        verdict = self.guards.audit_action(request)
+
+        self.assertEqual(verdict["verdict"], "BLOCK")
+        self.assertIn("No explicit", verdict["reason"])
+
+    def test_complete_request_is_recorded_in_action_audit(self):
+        request = self._request()
+
+        self.guards.audit_action(request)
+
+        entry = self.guards.action_audit[-1]
+
+        self.assertEqual(
+            entry["request"]["action_id"],
+            request.action_id,
+        )
+        self.assertEqual(
+            entry["request"]["component"]["name"],
+            "read_file",
+        )
+        self.assertEqual(
+            entry["request"]["operation"],
+            "read",
+        )
+
+    def test_every_attempt_produces_exactly_one_audit_entry(self):
+        requests = [
+            self._request(operation="read"),
+            self._request(operation="write"),
+            self._request(operation="execute"),
+        ]
+
+        for request in requests:
+            self.guards.audit_action(request)
+
+        self.assertEqual(
+            len(self.guards.action_audit),
+            3,
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,41 @@
+{
+  "id": "mem_Mind_0000000000001",
+  "ts": 1791703306.845101,
+  "domain_created": "Mind",
+  "memory_class": "raw",
+  "originator": [
+    {
+      "type": "trainer",
+      "name": "user"
+    }
+  ],
+  "kind": "language",
+  "title": "Coding Rules",
+  "content": "# Coding Rules\n\n1. Inspect existing code before modifying it.\n2. Understand the requested change before writing code.\n3. Prefer the smallest correct change.\n4. Do not duplicate existing functionality.\n5. Write or update tests for important changes.\n6. Run tests after every change.\n7. Diagnose failures before changing unrelated code.\n8. Never claim code works without verification.\n9. Never delete existing functionality.\n   If it must go, propose retirement.\n10. Never modify anything inside sectio",
+  "tags": [
+    "coding",
+    "rules",
+    "best practices"
+  ],
+  "writers": [
+    "Mind"
+  ],
+  "readers": [
+    "Mind"
+  ],
+  "success_count": 0,
+  "failure_count": 0,
+  "last_success_ts": null,
+  "last_failure_ts": null,
+  "failures": [],
+  "cross_refs": [],
+  "context_memory": null,
+  "active_chat": null,
+  "score": 0.0,
+  "status": "active",
+  "superseded_by": null,
+  "supersedes": null,
+  "source_refs": [],
+  "derivation_note": "",
+  "derived_status": "active"
+}

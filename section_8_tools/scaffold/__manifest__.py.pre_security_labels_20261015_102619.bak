@@ -1,0 +1,9 @@
+ORGAN = {
+    "name": "scaffold",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": ["list_scaffolds", "read_scaffold", "apply_scaffold"],
+    "keywords": [],
+    "entry_module": "scaffold.scaffold",
+    "entry_attr": "TOOLS",
+}

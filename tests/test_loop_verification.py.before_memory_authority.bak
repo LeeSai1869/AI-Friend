@@ -1,0 +1,204 @@
+import sys
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CENTRAL_MIND = PROJECT_ROOT / "section_1_central_mind"
+sys.path.insert(0, str(CENTRAL_MIND))
+
+from mind.loop import CentralMind
+from mind.composer import Composer
+from mind.verifier import Verifier
+sys.path.insert(0, str(PROJECT_ROOT / "section_5_domains"))
+from coding.coding_engine import CodingOrgan
+
+
+class StubOrgan:
+    name = "test-organ"
+
+    def __init__(self, response, verdict):
+        self.responses = list(response) if isinstance(response, list) else [response]
+        self.verdict = verdict
+
+    def handle(self, request):
+        return self.responses.pop(0)
+
+    def verify(self, response):
+        return self.verdict
+
+    def score_event(self, event):
+        pass
+
+
+class StubBroker:
+    def reset_budget(self):
+        pass
+
+
+class StubScorer:
+    def record(self, organ, event):
+        pass
+
+
+def make_mind(organ):
+    organs = organ if isinstance(organ, list) else [organ]
+    mind = CentralMind.__new__(CentralMind)
+    mind.turn_count = 0
+    mind.broker = StubBroker()
+    mind.chat_log = []
+    mind.caller = object()
+    mind.memory = None
+    mind.router = SimpleNamespace(
+        route=lambda request: [
+            SimpleNamespace(name=item.name, entry_module="stub", entry_attr="StubOrgan")
+            for item in organs
+        ]
+    )
+    mind._load_organ = lambda info: next(
+        item for item in organs if item.name == info.name
+    )
+    mind.verifier = Verifier()
+    mind.scorer = StubScorer()
+    mind.composer = Composer()
+    mind.questioner = SimpleNamespace(ask=lambda questions: {})
+    mind._maybe_evolve = lambda: None
+    return mind
+
+
+class CentralMindVerificationTests(unittest.TestCase):
+    def test_rejected_answer_is_not_returned_as_success(self):
+        organ = StubOrgan(
+            {"status": "ok", "output": "REJECTED SECRET ANSWER"},
+            {"ok": False, "reason": "verification failed"},
+        )
+        result = make_mind(organ).process("test request")
+
+        self.assertNotEqual(result.get("status"), "ok")
+        self.assertNotIn("REJECTED SECRET ANSWER", str(result))
+
+    def test_accepted_answer_still_works(self):
+        organ = StubOrgan(
+            {"status": "ok", "output": "Accepted answer"},
+            {"ok": True, "reason": "passed"},
+        )
+        result = make_mind(organ).process("test request")
+
+        self.assertEqual(result.get("status"), "ok")
+        self.assertEqual(result.get("output"), "Accepted answer")
+
+    def test_one_rejection_withholds_all_combined_outputs(self):
+        accepted = StubOrgan(
+            {"status": "ok", "output": "SAFE OTHER ANSWER"},
+            {"ok": True, "reason": "passed"},
+        )
+        accepted.name = "accepted-organ"
+
+        rejected = StubOrgan(
+            {"status": "ok", "output": "REJECTED SECRET ANSWER"},
+            {"ok": False, "reason": "verification failed"},
+        )
+        rejected.name = "rejected-organ"
+
+        result = make_mind([accepted, rejected]).process("test request")
+
+        self.assertNotEqual(result.get("status"), "ok")
+        self.assertNotIn("SAFE OTHER ANSWER", str(result))
+        self.assertNotIn("REJECTED SECRET ANSWER", str(result))
+
+    def test_clarification_flow_is_preserved(self):
+        organ = StubOrgan(
+            [
+                {"status": "needs_answers", "questions": [{"question": "Which one?"}]},
+                {"status": "needs_answers", "questions": [{"question": "Please clarify."}]},
+            ],
+            {"ok": True, "reason": "passed"},
+        )
+        result = make_mind(organ).process("test request")
+
+        self.assertEqual(result.get("status"), "needs_answers")
+        self.assertTrue(result.get("questions"))
+
+
+class FixedCodingOrgan(CodingOrgan):
+    """Use the real CodingOrgan verifier with a controlled test response."""
+
+    def __init__(self, response):
+        super().__init__()
+        self.test_response = response
+
+    def handle(self, request):
+        return self.test_response
+
+
+class CodingOrganIntegrationTests(unittest.TestCase):
+    def test_central_mind_rejects_coding_success_without_evidence(self):
+        organ = FixedCodingOrgan({
+            "status": "ok",
+            "operation": "code_change",
+            "output": "UNVERIFIED SECRET: code change succeeded",
+            "artifacts": ["example.py"],
+        })
+
+        result = make_mind(organ).process("fix example.py")
+
+        self.assertNotEqual(result.get("status"), "ok")
+        self.assertNotIn("UNVERIFIED SECRET", str(result))
+
+    def test_central_mind_accepts_coding_success_with_valid_evidence(self):
+        organ = FixedCodingOrgan({
+            "status": "ok",
+            "operation": "code_change",
+            "output": "Verified code change",
+            "artifacts": ["example.py"],
+            "verification": {
+                "ok": True,
+                "reason": "File write and Python syntax check succeeded",
+                "checks": {
+                    "file_writes": True,
+                    "python_syntax": "passed",
+                },
+            },
+        })
+
+        result = make_mind(organ).process("fix example.py")
+
+        self.assertEqual(result.get("status"), "ok")
+        self.assertIn("Verified code change", str(result))
+
+
+class MemoryDispatchTests(unittest.TestCase):
+    def test_organ_receives_client_from_shared_memory_service(self):
+        class CapturingOrgan(StubOrgan):
+            def handle(self, request):
+                self.last_request = request
+                return super().handle(request)
+
+        organ = CapturingOrgan(
+            {"status": "ok", "output": "Memory dispatch checked"},
+            {"ok": True, "reason": "passed"},
+        )
+        organ.name = "coder"
+
+        client_marker = object()
+        client_calls = []
+
+        def make_client(**kwargs):
+            client_calls.append(kwargs)
+            return client_marker
+
+        mind = make_mind(organ)
+        mind.memory_service = SimpleNamespace(client=make_client)
+
+        result = mind.process("test request")
+
+        self.assertEqual(result.get("status"), "ok")
+        self.assertIs(organ.last_request["memory"], client_marker)
+        self.assertEqual(len(client_calls), 1)
+        self.assertEqual(client_calls[0]["actor"], "coder")
+        self.assertEqual(client_calls[0]["role"], "domain")
+        self.assertEqual(client_calls[0]["domain"], "Cod")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

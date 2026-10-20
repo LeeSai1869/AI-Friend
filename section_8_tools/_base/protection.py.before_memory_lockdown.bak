@@ -1,0 +1,79 @@
+"""Central path policy for model/tool-initiated file writes.
+
+This is an application-level policy, not an OS sandbox. Callers must identify
+their role explicitly; only the Designer role receives the narrow
+ design_actual.md exception.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+
+class ProtectedPathError(PermissionError):
+    """Raised when a write targets a protected project path."""
+
+
+def resolve_project_target(project_root: Path, target: str | Path) -> Path:
+    """Resolve a target against the project root, including existing symlinks."""
+    root = Path(project_root).resolve()
+    candidate = Path(target)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    return candidate.resolve()
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def is_protected_target(
+    project_root: Path,
+    target: str | Path,
+    *,
+    actor: str = "tool",
+) -> bool:
+    """Return whether this actor must be denied a write to target."""
+    root = Path(project_root).resolve()
+    resolved = resolve_project_target(root, target)
+
+    # Do not let project write routes escape the project root.
+    if not _is_within(resolved, root):
+        return True
+
+    section1 = (root / "section_1_central_mind").resolve()
+    section2 = (root / "section_2_constitution").resolve()
+    security_log_dir = (root / "section_3_memory" / "security").resolve()
+    security_log = security_log_dir / "denials.json"
+
+    # The Designer may write exactly this one generated architecture report.
+    actual_design = (section2 / "design_actual.md").resolve()
+    if actor == "designer" and resolved == actual_design:
+        return False
+
+    if _is_within(resolved, section1) or _is_within(resolved, section2):
+        return True
+
+    # Keep security-denial records separate from ordinary mutable memory.
+    if _is_within(resolved, security_log_dir) or resolved == security_log:
+        return True
+
+    return False
+
+
+def assert_write_allowed(
+    project_root: Path,
+    target: str | Path,
+    *,
+    actor: str = "tool",
+) -> Path:
+    """Return the resolved target or raise if policy forbids the write."""
+    resolved = resolve_project_target(project_root, target)
+    if is_protected_target(project_root, resolved, actor=actor):
+        raise ProtectedPathError(
+            f"Write denied by protection policy: {resolved}"
+        )
+    return resolved

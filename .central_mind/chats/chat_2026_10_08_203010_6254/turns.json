@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "text": "what is the capital of France?",
+    "ts": 1791473410.231307,
+    "action": "",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Central Mind — coding\n\n[echo-model] No external model configured.\nSet model_provider to 'ollama' in .central_mind/config.json to use a real local model.\n\nPrompt was:\nUser question:\nwhat is the capital of France?\n\nDomain: coding\n\nChat summary so far:\n(empty)\n\nRelevant memory:\n(none)\n\nAnswer clearly and concisely. If you do not know, say so.",
+    "ts": 1791473410.231999,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

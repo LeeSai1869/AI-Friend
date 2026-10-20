@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "text": "Translate “How are you?” in Urdu.",
+    "ts": 1792167653.160521,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "\"How are you?\" translates to \"آپ کا حال کیا ہے?\" (Aap ka hal kya hai?) in Urdu.",
+    "ts": 1792167653.161346,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

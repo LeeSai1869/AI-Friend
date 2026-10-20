@@ -1,0 +1,279 @@
+// Memory Intake panel — a separate operation from chat.
+// Three screens: source picker, proposal review, confirmation.
+
+import { sendRaw, onMessage } from "./bridge.js";
+
+let currentProposal = null;
+
+// ---- panel open / close ----------------------------------------
+
+export function openIntake() {
+  const overlay = document.getElementById("intake-overlay");
+  if (!overlay) return;
+  overlay.style.display = "flex";
+  showSourceScreen();
+}
+
+export function closeIntake() {
+  const overlay = document.getElementById("intake-overlay");
+  if (!overlay) return;
+  overlay.style.display = "none";
+  currentProposal = null;
+}
+
+// ---- screen 1: pick a source ----------------------------------
+
+function showSourceScreen() {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = `
+    <div class="intake-section">
+      <div class="intake-label">Where does the source come from?</div>
+      <div class="intake-buttons">
+        <button data-action="existing" class="intake-btn">
+          🗂  A file in the workspace
+        </button>
+        <button data-action="file" class="intake-btn" disabled>
+          📄 A file on disk (coming)
+        </button>
+        <button data-action="folder" class="intake-btn" disabled>
+          📁 A folder (coming)
+        </button>
+        <button data-action="url" class="intake-btn" disabled>
+          🌐 A URL (coming)
+        </button>
+        <button data-action="text" class="intake-btn" disabled>
+          ✏  Paste text (coming)
+        </button>
+      </div>
+    </div>
+    <div class="intake-footer">
+      <button id="intake-cancel-1" class="intake-btn">Cancel</button>
+    </div>
+  `;
+
+  document.getElementById("intake-cancel-1").onclick = closeIntake;
+
+  body.querySelectorAll(".intake-btn").forEach((b) => {
+    b.onclick = () => {
+      const action = b.getAttribute("data-action");
+      if (action === "existing") {
+        showExistingPicker();
+      }
+    };
+  });
+}
+
+// ---- screen 1b: pick an existing file --------------------------
+
+function showExistingPicker() {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = `
+    <div class="intake-section">
+      <div class="intake-label">Enter a path relative to the project root:</div>
+      <input id="intake-path" type="text" placeholder="e.g. Readme.md or section_5_domains/coding/requirements.md" />
+      <div class="intake-hint">
+        Examples: <code>Readme.md</code>, <code>section_5_domains/coding/__manifest__.py</code>
+      </div>
+    </div>
+    <div class="intake-footer">
+      <button id="intake-back-1" class="intake-btn">Back</button>
+      <button id="intake-propose" class="intake-btn primary">Read and propose</button>
+    </div>
+  `;
+
+  document.getElementById("intake-back-1").onclick = showSourceScreen;
+  document.getElementById("intake-propose").onclick = () => {
+    const path = document.getElementById("intake-path").value.trim();
+    if (!path) return;
+    propose(path);
+  };
+}
+
+function propose(path) {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = `
+    <div class="intake-section">
+      <div class="intake-label">Reading and classifying...</div>
+      <div class="intake-hint">${escapeHtml(path)}</div>
+    </div>
+  `;
+  sendRaw({ op: "intake_propose", path });
+}
+
+// ---- screen 2: review proposal --------------------------------
+
+function showProposalScreen(p) {
+  currentProposal = p;
+  const body = document.getElementById("intake-body");
+
+  const domains = ["Cod", "Img", "Vid", "Trd", "Gen", "Mind", "Chr", "Cap"];
+  const kinds = ["fact", "language", "formula", "pattern", "observation", "theory"];
+
+  body.innerHTML = `
+    <div class="intake-section">
+      <div class="intake-label">Source</div>
+      <div class="intake-hint">${escapeHtml(p.source_path)} · ${p.content_bytes} bytes · ${escapeHtml(p.source_kind || "file")}</div>
+      <pre class="intake-preview">${escapeHtml(p.preview || "")}</pre>
+    </div>
+
+    <div class="intake-section">
+      <div class="intake-label">Classification</div>
+
+      <div class="intake-field">
+        <span class="intake-key">Memory class</span>
+        <span class="intake-value">${p.memory_class}</span>
+      </div>
+
+      <div class="intake-field">
+        <span class="intake-key">Domain</span>
+        <select id="intake-domain">
+          ${domains.map(d => `<option value="${d}" ${d === p.domain ? "selected" : ""}>${d}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="intake-field">
+        <span class="intake-key">Kind</span>
+        <select id="intake-kind">
+          ${kinds.map(k => `<option value="${k}" ${k === p.kind ? "selected" : ""}>${k}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="intake-field">
+        <span class="intake-key">Title</span>
+        <input id="intake-title-input" type="text" value="${escapeAttr(p.title)}" />
+      </div>
+
+      <div class="intake-field">
+        <span class="intake-key">Tags</span>
+        <input id="intake-tags-input" type="text" value="${escapeAttr((p.tags || []).join(", "))}" />
+      </div>
+    </div>
+
+    <div class="intake-footer">
+      <button id="intake-back-2" class="intake-btn">Back</button>
+      <button id="intake-cancel-2" class="intake-btn">Cancel</button>
+      <button id="intake-store" class="intake-btn primary">Store as raw memory</button>
+    </div>
+  `;
+
+  document.getElementById("intake-back-2").onclick = showExistingPicker;
+  document.getElementById("intake-cancel-2").onclick = closeIntake;
+  document.getElementById("intake-store").onclick = () => storeProposal(p);
+}
+
+function storeProposal(original) {
+  const domain = document.getElementById("intake-domain").value;
+  const kind = document.getElementById("intake-kind").value;
+  const title = document.getElementById("intake-title-input").value.trim();
+  const tagsRaw = document.getElementById("intake-tags-input").value;
+  const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+
+  const proposal = {
+    memory_class: "raw",
+    domain,
+    kind,
+    title,
+    tags,
+    content: original.content || original.preview || "",
+    source_path: original.source_path,
+    originator: [{ type: "trainer", name: "user" }],
+  };
+
+  const body = document.getElementById("intake-body");
+  body.innerHTML = `
+    <div class="intake-section">
+      <div class="intake-label">Storing...</div>
+    </div>
+  `;
+
+  sendRaw({ op: "intake_commit", proposal });
+}
+
+// ---- screen 3: confirmation -----------------------------------
+
+function showStoredScreen(s) {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = `
+    <div class="intake-section">
+      <div class="intake-label">Stored</div>
+      <div class="intake-field">
+        <span class="intake-key">Memory ID</span>
+        <span class="intake-value">${escapeHtml(s.id || "?")}</span>
+      </div>
+      <div class="intake-field">
+        <span class="intake-key">Domain</span>
+        <span class="intake-value">${escapeHtml(s.domain || "?")}</span>
+      </div>
+      <div class="intake-field">
+        <span class="intake-key">Title</span>
+        <span class="intake-value">${escapeHtml(s.title || "")}</span>
+      </div>
+      <div class="intake-field">
+        <span class="intake-key">Tags</span>
+        <span class="intake-value">${escapeHtml((s.tags || []).join(", "))}</span>
+      </div>
+    </div>
+    <div class="intake-footer">
+      <button id="intake-another" class="intake-btn">Intake another</button>
+      <button id="intake-close-3" class="intake-btn primary">Close</button>
+    </div>
+  `;
+
+  document.getElementById("intake-another").onclick = showSourceScreen;
+  document.getElementById("intake-close-3").onclick = closeIntake;
+}
+
+// ---- WebSocket message handling -------------------------------
+
+onMessage((msg) => {
+  if (msg.op === "intake_proposal") {
+    if (msg.error) {
+      const body = document.getElementById("intake-body");
+      body.innerHTML = `
+        <div class="intake-section">
+          <div class="intake-label">Error</div>
+          <div class="intake-hint">${escapeHtml(msg.error)}</div>
+        </div>
+        <div class="intake-footer">
+          <button id="intake-close-err" class="intake-btn">Close</button>
+        </div>
+      `;
+      document.getElementById("intake-close-err").onclick = closeIntake;
+      return;
+    }
+    showProposalScreen(msg.proposal || {});
+    return;
+  }
+
+  if (msg.op === "intake_stored") {
+    if (msg.error) {
+      const body = document.getElementById("intake-body");
+      body.innerHTML = `
+        <div class="intake-section">
+          <div class="intake-label">Error</div>
+          <div class="intake-hint">${escapeHtml(msg.error)}</div>
+        </div>
+        <div class="intake-footer">
+          <button id="intake-close-err2" class="intake-btn">Close</button>
+        </div>
+      `;
+      document.getElementById("intake-close-err2").onclick = closeIntake;
+      return;
+    }
+    showStoredScreen(msg);
+    return;
+  }
+});
+
+// ---- helpers --------------------------------------------------
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeAttr(s) {
+  return escapeHtml(s).replaceAll('"', "&quot;");
+}

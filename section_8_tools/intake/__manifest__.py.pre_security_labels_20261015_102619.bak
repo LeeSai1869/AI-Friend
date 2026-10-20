@@ -1,0 +1,9 @@
+ORGAN = {
+    "name": "intake",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": ["intake_propose", "intake_commit"],
+    "keywords": [],
+    "entry_module": "intake.intake",
+    "entry_attr": "TOOLS",
+}

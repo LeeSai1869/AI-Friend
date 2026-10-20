@@ -1,0 +1,14 @@
+ORGAN = {
+    "name": "vision",
+    "kind": "tool",
+    "scope": "outside_guards",
+    "capabilities": [
+        "image_describe",
+        "image_read_text",
+        "pdf_read",
+        "video_extract_frames",
+    ],
+    "keywords": [],
+    "entry_module": "vision.vision",
+    "entry_attr": "TOOLS",
+}

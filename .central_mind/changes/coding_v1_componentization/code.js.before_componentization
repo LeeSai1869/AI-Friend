@@ -1,0 +1,220 @@
+import { getIntent } from "./intents.js";
+import { send, onMessage, listFiles, readFile, onAuthenticated } from "./ui/shared/auth_session/session.js";
+import "../src/ui/chat/auth/login_overlay.js";
+
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const thread = document.getElementById("chat-thread");
+const tree = document.getElementById("files-tree");
+const editor = document.getElementById("editor");
+
+// ---- Recent files ----------------------------------------------
+
+const recentFiles = [];
+
+function addRecent(path) {
+  if (recentFiles.includes(path)) return;
+  recentFiles.unshift(path);
+  if (recentFiles.length > 5) recentFiles.pop();
+  const list = document.getElementById("recent-list");
+  if (!list) return;
+  list.innerHTML = "";
+  for (const p of recentFiles) {
+    const el = document.createElement("div");
+    el.textContent = p.split("/").pop();
+    el.title = p;
+    el.addEventListener("click", () => readFile(p));
+    list.appendChild(el);
+  }
+}
+
+// ---- Chat ------------------------------------------------------
+
+function appendMessage(role, text) {
+  const msg = document.createElement("div");
+  msg.className = `msg msg-${role}`;
+  msg.innerHTML = `<div class="msg-role">${role === "user" ? "You" : "Central Mind"}</div><div class="msg-body"></div>`;
+  msg.querySelector(".msg-body").textContent = text;
+  thread.appendChild(msg);
+  thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
+}
+
+function onSubmit() {
+  const text = input.value.trim();
+  if (!text) return;
+  const intent = getIntent();
+  appendMessage("user", text);
+  input.value = "";
+  input.style.height = "auto";
+  send(text, intent);
+}
+
+sendBtn.addEventListener("click", onSubmit);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSubmit(); }
+});
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+});
+
+// ---- File tree -------------------------------------------------
+
+let currentPath = "";
+
+function loadTree(path) {
+  currentPath = path;
+  listFiles(path);
+}
+
+function renderTree(files, parentPath) {
+  tree.innerHTML = "";
+
+  // Show ".." only if we are not at the root.
+  if (parentPath) {
+    const up = document.createElement("div");
+    up.className = "file";
+    up.textContent = "⬆ ..";
+    up.addEventListener("click", () => {
+      const parts = parentPath.split("/").filter(Boolean);
+      parts.pop();
+      loadTree(parts.join("/"));
+    });
+    tree.appendChild(up);
+  }
+
+  for (const f of files) {
+    const el = document.createElement("div");
+    el.className = "file";
+    el.style.display = "flex";
+    el.style.alignItems = "center";
+    el.style.gap = "6px";
+
+    const isDir = f.type === "dir";
+    const ext = f.name.split(".").pop()?.toLowerCase() || "";
+    let icon = "📄";
+    if (isDir) icon = "📁";
+    else if (ext === "py") icon = "🐍";
+    else if (ext === "md") icon = "📝";
+    else if (ext === "json") icon = "🔧";
+    else if (ext === "html") icon = "🌐";
+    else if (ext === "css") icon = "🎨";
+    else if (ext === "js" || ext === "mjs") icon = "📜";
+    else if (ext === "rs") icon = "🦀";
+
+    const iconEl = document.createElement("span");
+    iconEl.textContent = icon;
+    iconEl.style.fontSize = "13px";
+    iconEl.style.flexShrink = "0";
+    el.appendChild(iconEl);
+
+    const nameEl = document.createElement("span");
+    nameEl.textContent = f.name;
+    nameEl.style.overflow = "hidden";
+    nameEl.style.textOverflow = "ellipsis";
+    nameEl.style.whiteSpace = "nowrap";
+    el.appendChild(nameEl);
+
+    if (isDir) {
+      el.addEventListener("click", () => loadTree(f.path));
+    } else {
+      el.addEventListener("click", () => {
+        // Highlight the clicked file.
+        tree.querySelectorAll(".file").forEach(e => e.classList.remove("active-file"));
+        el.classList.add("active-file");
+        readFile(f.path);
+      });
+    }
+    tree.appendChild(el);
+  }
+}
+
+// ---- Editor ----------------------------------------------------
+
+function renderFile(path, content) {
+  addRecent(path);
+  editor.innerHTML = "";
+  editor.style.display = "flex";
+  editor.style.flexDirection = "column";
+  editor.style.alignItems = "stretch";
+  editor.style.justifyContent = "flex-start";
+  editor.style.padding = "0";
+
+  // Tab bar at top
+  const tabBar = document.createElement("div");
+  tabBar.style.display = "flex";
+  tabBar.style.background = "#181818";
+  tabBar.style.borderBottom = "1px solid var(--border)";
+  tabBar.style.padding = "0 8px";
+
+  const tab = document.createElement("div");
+  tab.style.padding = "8px 14px";
+  tab.style.background = "#1e1e1e";
+  tab.style.borderTop = "1px solid var(--accent)";
+  tab.style.color = "var(--text-bright)";
+  tab.style.fontSize = "12px";
+  tab.style.fontFamily = '"SF Mono", Menlo, monospace';
+  tab.textContent = path.split("/").pop();
+  tab.title = path;
+  tabBar.appendChild(tab);
+  editor.appendChild(tabBar);
+
+  // Code area
+  const wrapper = document.createElement("div");
+  wrapper.style.flex = "1";
+  wrapper.style.overflow = "auto";
+  wrapper.style.background = "#1e1e1e";
+
+  const pre = document.createElement("pre");
+  pre.style.margin = "0";
+  pre.style.padding = "16px";
+  pre.style.fontFamily = '"SF Mono", Menlo, monospace';
+  pre.style.fontSize = "12.5px";
+  pre.style.lineHeight = "1.55";
+  pre.style.color = "var(--text)";
+  pre.style.whiteSpace = "pre";
+  pre.style.tabSize = "4";
+  pre.textContent = content;
+  wrapper.appendChild(pre);
+  editor.appendChild(wrapper);
+}
+
+// ---- Message handling -----------------------------------------
+
+onMessage((msg) => {
+  if (msg.op === "files_result") {
+    renderTree(msg.files || [], msg.path || "");
+    return;
+  }
+  if (msg.op === "file_content") {
+    renderFile(msg.path, msg.content || "");
+    return;
+  }
+
+  // Chat messages only.
+  if (msg.op) return;
+  if (msg.role !== "mind" && msg.role !== "user" && msg.role !== "system") return;
+  appendMessage(msg.role === "user" ? "user" : "mind", msg.text ?? "");
+});
+
+// ---- Buttons ---------------------------------------------------
+
+document.getElementById("btn-open-folder")?.addEventListener("click", () => {
+  loadTree("");  // reset to project root
+});
+
+document.getElementById("btn-back-chat")?.addEventListener("click", async () => {
+  try {
+    if (window.__TAURI__ && window.__TAURI__.core) {
+      await window.__TAURI__.core.invoke("open_chat_window");
+    } else {
+      window.location.href = "window-chat.html";
+    }
+  } catch (e) {
+    window.location.href = "window-chat.html";
+  }
+});
+
+// ---- Initial load ---------------------------------------------
+
+onAuthenticated(() => loadTree(""));  // load after authentication

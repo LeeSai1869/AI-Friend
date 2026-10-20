@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Central Mind — Code</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+        <aside class="projects-panel">
+      <div class="section-title">Workspace</div>
+      <div class="item" id="workspace-item">📁 AI Friend V1</div>
+
+      <div class="section-title" style="margin-top:12px;">Recent</div>
+      <div class="item" id="recent-list"></div>
+
+      <div style="flex:1"></div>
+
+      <div class="section-title">Actions</div>
+      <div class="item" id="btn-open-folder">📂 Open Folder</div>
+      <div class="item" id="btn-back-chat">💬 Back to Chat</div>
+    </aside>
+    <aside class="files-panel">
+      <div class="section-title">Explorer</div>
+      <div class="files-tree" id="files-tree">
+        <!-- Populated dynamically from the backend. -->
+      </div>
+    </aside>
+    <section class="center-panel">
+      <div class="editor-panel" id="editor">Editor · no file open</div>
+      <div class="terminal-panel">
+        <div class="terminal-header">
+          <span>Terminal</span>
+          <span>+ · ×</span>
+        </div>
+        <div class="terminal-body" id="terminal">
+          <div class="line">$ python3 main.py --serve</div>
+          <div class="line">Central Mind backend ready.</div>
+        </div>
+      </div>
+    </section>
+    <aside class="chat-panel">
+      <div class="chat-topbar">
+        <div class="chat-topic">Chat <span class="dim">· coding</span></div>
+      </div>
+      <div class="chat-body">
+        <div class="chat-thread" id="chat-thread">
+          <div class="msg msg-mind">
+            <div class="msg-role">Central Mind</div>
+            <div class="msg-body">Ready. Working on this project.</div>
+          </div>
+        </div>
+      </div>
+      <div class="intent-bar" id="intent-bar"></div>
+      <div class="input-bar">
+        <textarea id="input" placeholder="Type a message..." rows="1"></textarea>
+        <button class="send-btn" id="send">Send ↑</button>
+      </div>
+    </aside>
+  </div>
+  <script type="module" src="intents.js"></script>
+  <script type="module" src="code.js"></script>
+</body>
+</html>

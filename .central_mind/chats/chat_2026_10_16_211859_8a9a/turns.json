@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "text": "Hello.",
+    "ts": 1792167542.498291,
+    "action": "ask",
+    "verified": [],
+    "rejected": []
+  },
+  {
+    "role": "mind",
+    "text": "Hello! It's nice to meet you. I'm here to help with any questions or topics you'd like to discuss. How can I assist you today?",
+    "ts": 1792167542.499118,
+    "action": "answer",
+    "verified": [],
+    "rejected": []
+  }
+]

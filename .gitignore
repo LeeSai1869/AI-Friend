@@ -1,0 +1,28 @@
+# ─── Rust / Tauri build output ───
+target/
+section_0_app/src-tauri/target/
+section_0_app/src-tauri/gen/
+
+# ─── Node ───
+node_modules/
+section_0_app/node_modules/
+
+# ─── Python ───
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# ─── Local model cache (downloaded separately) ───
+whisperkit/
+
+# ─── Backups / temp ───
+backups/
+_safety_backup_*/
+_live_coding_test_*/
+*.log
+
+# ─── OS junk ───
+.DS_Store
+Thumbs.db

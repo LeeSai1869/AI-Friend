@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Friend — Coding</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app coding-app">
+
+    <aside class="coding-left-panel">
+      <div class="coding-project-header">
+        <div id="coding-project-name">AI Friend V1</div>
+        <div id="coding-project-root"></div>
+      </div>
+
+      <button class="sidebar-new" id="btn-open-folder">
+        📂 Open Project
+      </button>
+
+      <div class="section-title">Explorer</div>
+      <div class="files-tree" id="files-tree"></div>
+
+      <div class="coding-left-footer">
+        <button id="btn-settings">⚙ Settings</button>
+        <button id="btn-intake">📥 Memory intake</button>
+        <div id="coding-username">👤 Signed in</div>
+      </div>
+    </aside>
+
+    <main class="coding-center-panel">
+      <section class="editor-panel" id="editor"></section>
+
+      <section class="terminal-panel" id="coding-terminal">
+        <button class="terminal-header" id="terminal-toggle">
+          Terminal ▼
+        </button>
+        <div class="terminal-body" id="terminal">
+          <div class="line">
+            Terminal execution will use the active Coding project.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="coding-chat-panel">
+      <div class="chat-topbar">
+        <div class="chat-topic">
+          New chat <span class="dim">· general</span>
+        </div>
+        <button id="coding-new-chat">＋</button>
+      </div>
+
+      <div class="coding-chat-history" id="coding-chat-history"></div>
+
+      <div class="chat-body">
+        <div class="chat-thread" id="chat-thread">
+          <div class="msg msg-mind">
+            <div class="msg-role">Central Mind</div>
+            <div class="msg-body">
+              Ready. Working on this project.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="intent-bar" id="intent-bar"></div>
+
+      <div class="input-bar">
+        <textarea
+          id="input"
+          placeholder="Ask about this project..."
+          rows="1"
+        ></textarea>
+        <button class="send-btn" id="send">Send ↑</button>
+      </div>
+    </aside>
+
+  </div>
+
+  <div id="intake-overlay" style="display:none;">
+    <div id="intake-panel">
+      <div id="intake-header">
+        <span id="intake-title">Memory Intake</span>
+        <button id="intake-close">✕</button>
+      </div>
+      <div id="intake-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="ui/coding/shell/shell.js"></script>
+</body>
+</html>

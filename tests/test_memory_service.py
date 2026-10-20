@@ -1,0 +1,304 @@
+import sys
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from section_3_memory.api import Memory
+from section_3_memory.service import MemoryService
+
+
+class MemoryServiceBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = TemporaryDirectory()
+        self.memory = Memory(root=Path(self.temp.name))
+        self.service = MemoryService(self.memory)
+
+        self.coding = self.service.client(
+            actor="coding",
+            role="domain",
+            domain="Cod",
+        )
+        self.trading = self.service.client(
+            actor="trading",
+            role="domain",
+            domain="Trd",
+        )
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_client_does_not_expose_storage(self):
+        self.assertFalse(hasattr(self.coding, "memory"))
+        self.assertFalse(hasattr(self.coding, "store"))
+
+    def test_domain_can_contribute_knowledge_to_another_domain(self):
+        proposal = self.coding.propose_knowledge(
+            domain="Trd",
+            title="Cross-domain learning",
+            content="A coding organ may contribute relevant trading knowledge.",
+        )
+        self.assertEqual(proposal["status"], "pending")
+        self.assertEqual(self.memory.count(), 0)
+
+        result = self.service.commit_approved_proposal(
+            proposal["proposal_id"],
+            approved_by="central_mind",
+            decision_reason="Reviewed for cross-domain relevance.",
+            approved_class="derived",
+        )
+        self.assertTrue(self.memory.exists(result["memory_id"]))
+        self.assertEqual(
+            self.memory.get(result["memory_id"]).domain_created, "Trd"
+        )
+
+    def test_domains_can_recall_shared_knowledge(self):
+        proposal = self.coding.propose_knowledge(
+            domain="Cod",
+            title="Shared learning example",
+            content="This knowledge may also help trading.",
+        )
+        self.assertEqual(self.memory.count(), 0)
+        result = self.service.commit_approved_proposal(
+            proposal["proposal_id"],
+            approved_by="central_mind",
+            decision_reason="Reviewed for shared use.",
+            approved_class="derived",
+        )
+        results = self.trading.recall(
+            query="Shared learning example",
+            limit=10,
+        )
+        self.assertIn(result["memory_id"], [entry["id"] for entry in results])
+
+    def test_domain_client_has_no_delete_or_retire_operation(self):
+        for operation in ("delete", "delete_memory", "retire", "supersede"):
+            with self.subTest(operation=operation):
+                self.assertFalse(hasattr(self.coding, operation))
+
+    def test_domain_can_propose_deletion_without_deleting(self):
+        entry = self.memory.record(
+            domain="Cod",
+            kind="fact",
+            title="Keep this entry",
+            content="A deletion proposal must not erase this.",
+        )
+        proposal = self.coding.propose_delete(
+            entry.id,
+            reason="Testing the authorization workflow",
+        )
+        self.assertEqual(proposal["status"], "pending")
+        self.assertTrue(self.memory.exists(entry.id))
+
+    def test_client_can_write_to_its_own_domain_only_after_approval(self):
+        proposal = self.coding.propose_knowledge(
+            domain="Cod",
+            title="Coding test entry",
+            content="A test-only memory entry.",
+        )
+        self.assertEqual(self.memory.count(), 0)
+
+        result = self.service.commit_approved_proposal(
+            proposal["proposal_id"],
+            approved_by="central_mind",
+            decision_reason="Reviewed coding entry.",
+            approved_class="derived",
+        )
+        self.assertTrue(self.memory.exists(result["memory_id"]))
+        self.assertEqual(
+            self.memory.get(result["memory_id"]).domain_created, "Cod"
+        )
+
+    def test_domain_client_exposes_no_legacy_direct_write_methods(self):
+        for method in (
+            "remember_raw", "remember_tested", "remember_derived",
+            "confirm_success", "confirm_failure",
+        ):
+            with self.subTest(method=method):
+                self.assertFalse(hasattr(self.coding, method))
+
+
+    def test_pending_proposal_does_not_create_memory(self):
+        proposal = self.coding.propose_knowledge(
+            title="Pending proposal",
+            content="This must not be stored before approval.",
+            evidence={"check": "not yet reviewed"},
+        )
+        self.assertEqual(proposal["status"], "pending")
+        self.assertEqual(self.memory.count(), 0)
+
+    def test_approval_commits_with_provenance_and_selected_class(self):
+        proposal = self.coding.propose_knowledge(
+            title="Approved proposal",
+            content="Central Mind explicitly approves this content.",
+            domain="Trd",
+            requested_class="tested",
+            evidence={"checks": ["reviewed source"]},
+            source={"source_type": "test"},
+        )
+        result = self.service.commit_approved_proposal(
+            proposal["proposal_id"],
+            approved_by="central_mind",
+            decision_reason="Evidence reviewed; approved as derived system knowledge.",
+            approved_class="derived",
+        )
+        self.assertEqual(result["status"], "approved")
+        self.assertEqual(result["approved_class"], "derived")
+        self.assertNotEqual(result["requested_class"], result["approved_class"])
+
+        entry = self.memory.get(result["memory_id"])
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.domain_created, "Trd")
+        self.assertEqual(entry.memory_class, "derived")
+        self.assertEqual(entry.source["source_type"], "test")
+        provenance = entry.source["memory_proposal"]
+        self.assertEqual(provenance["proposal_id"], proposal["proposal_id"])
+        self.assertEqual(provenance["approved_by"], "central_mind")
+        self.assertEqual(provenance["evidence"], {"checks": ["reviewed source"]})
+        self.assertIn("approved as derived", provenance["decision_reason"])
+
+    def test_rejection_never_creates_memory(self):
+        proposal = self.coding.propose_knowledge(
+            title="Rejected proposal",
+            content="This must remain outside stored memory.",
+        )
+        result = self.service.reject_knowledge_proposal(
+            proposal["proposal_id"],
+            decided_by="central_mind",
+            decision_reason="Evidence is insufficient.",
+        )
+        self.assertEqual(result["status"], "rejected")
+        self.assertIsNone(result["memory_id"])
+        self.assertEqual(self.memory.count(), 0)
+
+    def test_non_central_actor_cannot_commit(self):
+        proposal = self.coding.propose_knowledge(
+            title="Unauthorized proposal",
+            content="A domain cannot approve its own proposal.",
+        )
+        with self.assertRaises(PermissionError):
+            self.service.commit_approved_proposal(
+                proposal["proposal_id"],
+                approved_by="coding",
+                decision_reason="Self-approval attempt.",
+                approved_class="derived",
+            )
+        self.assertEqual(self.memory.count(), 0)
+        self.assertEqual(
+            self.service.pending_knowledge_proposals()[0]["status"],
+            "pending",
+        )
+
+    def test_proposal_cannot_be_committed_twice(self):
+        proposal = self.coding.propose_knowledge(
+            title="Single commit",
+            content="This should create exactly one entry.",
+        )
+        first = self.service.commit_approved_proposal(
+            proposal["proposal_id"],
+            approved_by="central_mind",
+            decision_reason="Reviewed.",
+            approved_class="derived",
+        )
+        with self.assertRaises(ValueError):
+            self.service.commit_approved_proposal(
+                proposal["proposal_id"],
+                approved_by="central_mind",
+                decision_reason="Second attempt.",
+                approved_class="derived",
+            )
+        self.assertEqual(self.memory.count(), 1)
+        self.assertEqual(first["status"], "approved")
+
+
+    def test_pending_proposal_survives_service_restart(self):
+        proposal = self.coding.propose_knowledge(
+            title="Restart persistence",
+            content="Pending proposals must survive service recreation.",
+        )
+
+        restarted_memory = Memory(root=Path(self.temp.name))
+        restarted_service = MemoryService(restarted_memory)
+        pending = restarted_service.pending_knowledge_proposals()
+
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["proposal_id"], proposal["proposal_id"])
+        self.assertEqual(pending[0]["title"], "Restart persistence")
+        self.assertEqual(restarted_memory.count(), 0)
+
+        restarted_client = restarted_service.client(
+            actor="coding", role="domain", domain="Cod"
+        )
+        next_proposal = restarted_client.propose_knowledge(
+            title="Next proposal",
+            content="The proposal ID must continue increasing.",
+        )
+        self.assertEqual(
+            next_proposal["proposal_id"], proposal["proposal_id"] + 1
+        )
+
+    def test_rejection_history_survives_service_restart(self):
+        proposal = self.coding.propose_knowledge(
+            title="Persist rejection",
+            content="This proposal should remain rejected after restart.",
+        )
+        self.service.reject_knowledge_proposal(
+            proposal["proposal_id"],
+            decided_by="central_mind",
+            decision_reason="Evidence was insufficient.",
+        )
+
+        restarted = MemoryService(Memory(root=Path(self.temp.name)))
+        restored = restarted._find_knowledge_proposal(proposal["proposal_id"])
+
+        self.assertEqual(restored["status"], "rejected")
+        self.assertEqual(restored["decision"], "rejected")
+        self.assertEqual(
+            restored["decision_reason"], "Evidence was insufficient."
+        )
+        self.assertEqual(restarted.pending_knowledge_proposals(), [])
+        self.assertEqual(self.memory.count(), 0)
+
+    def test_interrupted_approval_recovery_does_not_duplicate_entry(self):
+        from unittest.mock import patch
+
+        proposal = self.coding.propose_knowledge(
+            title="Interrupted approval",
+            content="Recovery must reuse an already-created memory entry.",
+        )
+
+        # Simulate a journal-write failure after the memory entry was saved.
+        with patch.object(
+            self.service,
+            "_save_knowledge_journal",
+            side_effect=OSError("simulated journal failure"),
+        ):
+            with self.assertRaises(OSError):
+                self.service.commit_approved_proposal(
+                    proposal["proposal_id"],
+                    approved_by="central_mind",
+                    decision_reason="Reviewed and approved.",
+                    approved_class="derived",
+                )
+
+        self.assertEqual(self.memory.count(), 1)
+
+        # Recreate the service to simulate an application restart.
+        restarted_memory = Memory(root=Path(self.temp.name))
+        restarted_service = MemoryService(restarted_memory)
+        recovered = restarted_service.commit_approved_proposal(
+            proposal["proposal_id"],
+            approved_by="central_mind",
+            decision_reason="Reviewed and approved.",
+            approved_class="derived",
+        )
+
+        self.assertEqual(recovered["status"], "approved")
+        self.assertEqual(restarted_memory.count(), 1)
+        self.assertTrue(restarted_memory.exists(recovered["memory_id"]))
+
+
+if __name__ == "__main__":
+    unittest.main()
