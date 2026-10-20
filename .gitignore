@@ -1,28 +1,74 @@
-# ─── Rust / Tauri build output ───
-target/
-section_0_app/src-tauri/target/
-section_0_app/src-tauri/gen/
-
-# ─── Node ───
-node_modules/
-section_0_app/node_modules/
-
-# ─── Python ───
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
 venv/
+env/
 .venv/
+ENV/
 
-# ─── Local model cache (downloaded separately) ───
-whisperkit/
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
-# ─── Backups / temp ───
+# Jupyter
+.ipynb_checkpoints/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Backups & snapshots
 backups/
 _safety_backup_*/
 _live_coding_test_*/
-*.log
 
-# ─── OS junk ───
-.DS_Store
-Thumbs.db
+# Runtime / ephemeral state
+.central_mind/test_runtime/
+.central_mind/staging/
+.central_mind/changes/
+
+# Test artifacts (NOT tests/ folder)
+workspace_test.png
+*.test.png
+test_output/
+test_results/
+
+# Node / frontend
+section_0_app/node_modules/
+node_modules/
+npm-debug.log*
+yarn-error.log*
+section_0_app/dist/
+section_0_app/src-tauri/target/
+.next/
+out/
+
+# Vendored Swift package
+whisperkit/.git/
+whisperkit/.swiftpm/
+whisperkit/Models/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.json
+section_0_app/src-tauri/gen/
+whisperkit/
