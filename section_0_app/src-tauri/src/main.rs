@@ -13,26 +13,40 @@ struct BackendProcess(Mutex<Option<CommandChild>>);
 
 /// Application-scoped authenticated session credential.
 ///
-/// This is deliberately process memory only:
-/// - never persisted to disk
-/// - never stored in browser local/session storage
-/// - never treated as authority by Tauri
-///
-/// The Python backend remains the authority boundary and must validate this
-/// opaque credential through AuthService before constructing a GuardPrincipal.
+/// By default this lives in process memory only. Explicit Remember Me stores
+/// the opaque revocable session credential in macOS Keychain, never a password.
+/// The backend validates it again before granting any authority.
 struct ApplicationSession(Mutex<Option<String>>);
 
 #[tauri::command]
 fn set_application_session(
     state: tauri::State<'_, ApplicationSession>,
     token: String,
+    remember: Option<bool>,
 ) -> Result<(), String> {
     if token.trim().is_empty() {
         return Err("session token is required".to_string());
     }
 
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    *guard = Some(token);
+    *guard = Some(token.clone());
+    #[cfg(target_os = "macos")]
+    {
+        let entry = keyring::Entry::new("com.centralmind.app", "application-session")
+            .map_err(|_| "Could not access macOS Keychain".to_string())?;
+        if remember.unwrap_or(false) {
+            entry.set_password(&token).map_err(|_| "Could not save Remember Me in macOS Keychain".to_string())?;
+        } else {
+            match entry.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => (),
+                Err(_) => return Err("Could not remove saved session from macOS Keychain".to_string()),
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    if remember.unwrap_or(false) {
+        return Err("Remember Me requires the macOS Keychain on this build".to_string());
+    }
     Ok(())
 }
 
@@ -40,7 +54,17 @@ fn set_application_session(
 fn get_application_session(
     state: tauri::State<'_, ApplicationSession>,
 ) -> Result<Option<String>, String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    if guard.is_none() {
+        let entry = keyring::Entry::new("com.centralmind.app", "application-session")
+            .map_err(|_| "Could not access macOS Keychain".to_string())?;
+        match entry.get_password() {
+            Ok(token) => *guard = Some(token),
+            Err(keyring::Error::NoEntry) => (),
+            Err(_) => return Err("Could not read Remember Me from macOS Keychain".to_string()),
+        }
+    }
     Ok(guard.clone())
 }
 
@@ -50,6 +74,15 @@ fn clear_application_session(
 ) -> Result<(), String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     *guard = None;
+    #[cfg(target_os = "macos")]
+    {
+        let entry = keyring::Entry::new("com.centralmind.app", "application-session")
+            .map_err(|_| "Could not access macOS Keychain".to_string())?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => (),
+            Err(_) => return Err("Could not remove saved session from macOS Keychain".to_string()),
+        }
+    }
     Ok(())
 }
 
@@ -119,9 +152,19 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
         ));
     }
 
+    if std::net::TcpStream::connect_timeout(
+        &"127.0.0.1:8765".parse().unwrap(), std::time::Duration::from_millis(300)
+    ).is_ok() {
+        return Err("Another AI Friend backend is using port 8765. Quit the other installed/development app before launching this build.".to_string());
+    }
+    let support = app.path().home_dir().map_err(|e| e.to_string())?
+        .join("Library").join("Application Support").join("AI Friend V1");
+    let installed_python = support.join("runtime").join("venv").join("bin").join("python3");
     let local_python = project_root.join(".venv").join("bin").join("python3");
     let python = if local_python.is_file() {
         local_python.to_string_lossy().to_string()
+    } else if installed_python.is_file() {
+        installed_python.to_string_lossy().to_string()
     } else {
         "python3".to_string()
     };
@@ -144,6 +187,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
                     .as_nanos()
             ),
         ])
+        .env("AI_FRIEND_STATE_DIR", support.join("state"))
         .current_dir(project_root)
         .set_process_group(true);
 

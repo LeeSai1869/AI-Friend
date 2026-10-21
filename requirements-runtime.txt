@@ -1,0 +1,3 @@
+-r section_1_central_mind/requirements.txt
+PyYAML==6.0.3
+websockets==17.3

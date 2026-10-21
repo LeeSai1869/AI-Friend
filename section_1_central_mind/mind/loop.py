@@ -552,6 +552,8 @@ class CentralMind:
         if callable(status) and message.startswith("[broker] ") and "(" in message:
             operation = message.split("[broker] ", 1)[1].split("(", 1)[0]
             status("Working: " + operation)
+        elif callable(status) and message.startswith("Using model resource "):
+            status(message)
 
     # ---- public: process one turn ---------------------------------
 

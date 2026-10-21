@@ -176,19 +176,21 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
     from playwright.sync_api import sync_playwright, expect
     stack = browser_stack
     errors = []
-    native_state = {'token': None}
+    native_state = {'token': None, 'saved': None}
     def native_bridge(command, args=None):
         if command == 'set_application_session':
             native_state['token'] = args['token']
+            native_state['saved'] = args['token'] if args.get('remember') else None
         if command == 'get_application_session':
-            return native_state['token']
+            return native_state['token'] or native_state['saved']
         if command == 'clear_application_session':
             native_state['token'] = None
+            native_state['saved'] = None
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=shutil.which('chromium'), headless=True)
         context = browser.new_context(viewport={'width': 1440, 'height': 1000})
         context.expose_function('nativeBridge', native_bridge)
-        context.add_init_script('''
+        native_script = '''
             const NativeSocket = window.WebSocket;
             window.WebSocket = class extends NativeSocket {
                 constructor(url, protocols) {
@@ -199,20 +201,30 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
                 core: {invoke: (command, args) => window.nativeBridge(command, args)},
                 dialog: {open: async () => %s},
             };
-        ''' % (json.dumps(stack['ws']), json.dumps(str(stack['project']))))
+        ''' % (json.dumps(stack['ws']), json.dumps(str(stack['project'])))
+        context.add_init_script(native_script)
         chat = context.new_page()
         chat.on('pageerror', lambda error: errors.append(str(error)))
         chat.goto(stack['url'] + '/window-chat.html')
         chat.locator('#auth-username').fill('test_trainer')
         chat.locator('#auth-password').fill('Test-trainer-password-2')
+        chat.locator('#auth-remember').check()
         chat.locator('#auth-form button').click()
         expect(chat.locator('#auth-overlay')).to_be_hidden(timeout=15000)
+        expect(chat.locator('#runtime-build')).to_contain_text('UI / Mind connected')
+        assert native_state['saved']
         coding = context.new_page()
         coding.on('pageerror', lambda error: errors.append(str(error)))
         coding.goto(stack['url'] + '/window-code.html')
         expect(coding.locator('#auth-overlay')).to_be_hidden(timeout=15000)
+        (stack['project'] / 'assets').mkdir()
+        (stack['project'] / 'assets/image.png').write_bytes(b'PNG')
+        (stack['project'] / 'assets/info.txt').write_text('Nested text file')
         coding.locator('#btn-open-folder').click()
         expect(coding.locator('#files-tree')).to_contain_text('answer.py')
+        coding.locator('#files-tree .file').filter(has_text='assets').click()
+        expect(coding.locator('#files-tree')).to_contain_text('image.png')
+        expect(coding.locator('#files-tree')).to_contain_text('info.txt')
         coding.locator('#files-tree .file').filter(has_text='🐍 answer.py').click()
         expect(coding.locator('#editor')).to_contain_text('return 0')
         assert len(stack['events']['minds']) == 1, 'windows must share their authenticated Mind'
@@ -293,8 +305,25 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         drafts = stack['events']['minds'][0]._intake_drafts.values()
         assert any(draft['source_kind'] == 'url' and draft['source_path'].endswith('/window-chat.html') for draft in drafts)
         chat.locator('#intake-cancel-2').click()
+        chat.locator('#btn-new-chat').click()
+        chat.locator('#input').fill('Hello')
+        chat.locator('#send').click()
+        expect(chat.locator('#chat-thread')).to_contain_text('Hello. How can I help?', timeout=15000)
+        expect(chat.locator('.msg-tool')).to_have_count(0)
         screenshot = ROOT / 'test_results/ui-round-trip.png'
         screenshot.parent.mkdir(exist_ok=True)
         chat.screenshot(path=str(screenshot), full_page=True)
         assert not errors, errors
+        # Recreate the UI/native in-memory session while retaining only the
+        # Keychain fixture. The real backend must validate the saved credential.
+        context.close()
+        native_state['token'] = None
+        restored = browser.new_context()
+        restored.expose_function('nativeBridge', native_bridge)
+        restored.add_init_script(native_script)
+        page = restored.new_page()
+        page.goto(stack['url'] + '/window-chat.html')
+        expect(page.locator('#auth-overlay')).to_be_hidden(timeout=15000)
+        expect(page.locator('#runtime-build')).to_contain_text('UI / Mind connected')
+        assert page.evaluate('localStorage.length') == 0
         browser.close()

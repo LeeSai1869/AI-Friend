@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import os
 from typing import Optional
 
 
@@ -87,6 +88,10 @@ class ResourceClassifier:
         self.memory_root = (
             self.project_root / "section_3_memory"
         ).resolve()
+        self.memory_storage_root = (
+            Path(os.environ["AI_FRIEND_STATE_DIR"]).expanduser().resolve() / "memory"
+            if os.environ.get("AI_FRIEND_STATE_DIR") else self.memory_root
+        )
         self.workspace_root = (
             self.project_root / "section_10_workspace"
         ).resolve()
@@ -144,6 +149,7 @@ class ResourceClassifier:
             self.kernel_root,
             self.constitution_root,
             self.memory_root,
+            self.memory_storage_root,
             self.runtime_root,
             self.workspace_root,
             self.data_root,
@@ -280,6 +286,9 @@ class ResourceClassifier:
 
         resolved = candidate.resolve()
 
+        if self._is_within(resolved, self.memory_storage_root) and self.memory_storage_root != self.memory_root:
+            return ResourceDescriptor(kind="memory", path=resolved)
+
         if not self._is_within(
             resolved,
             self.authorized_workspace_root,
@@ -317,7 +326,7 @@ class ResourceClassifier:
                 relative_path=relative,
             )
 
-        if self._is_within(resolved, self.memory_root):
+        if self._is_within(resolved, self.memory_root) or self._is_within(resolved, self.memory_storage_root):
             return ResourceDescriptor(
                 kind="memory",
                 path=resolved,

@@ -8,9 +8,11 @@ State is computed from counts - no state tags.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 
 
-MEMORY_ROOT = Path(__file__).resolve().parent
+MEMORY_ROOT = (Path(os.environ["AI_FRIEND_STATE_DIR"]).expanduser().resolve() / "memory"
+               if os.environ.get("AI_FRIEND_STATE_DIR") else Path(__file__).resolve().parent)
 ENTRIES_DIR = MEMORY_ROOT / "entries"
 
 

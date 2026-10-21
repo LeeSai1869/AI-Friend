@@ -35,6 +35,7 @@ function showSourceScreen() {
   body.innerHTML = `
     <div class="intake-section">
       <div class="intake-label">Where does the source come from?</div>
+      <div class="intake-hint">Use your Trainer account to submit learning material.</div>
       <div class="intake-buttons">
         <button data-action="existing" class="intake-btn">
           🗂  A file in the workspace

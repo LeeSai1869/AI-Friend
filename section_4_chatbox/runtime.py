@@ -17,6 +17,7 @@ verify, appraise, learn, or interpret domain semantics.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 from typing import Any, Dict, List, Mapping, Optional
 
 from .state import Chat, ChatStore
@@ -27,7 +28,7 @@ class ChatRuntime:
 
     def __init__(self, mind: Any, workspace: Path, *, owner: Optional[str] = None, include_legacy: bool = False):
         self.mind = mind
-        self.workspace = Path(workspace)
+        self.workspace = Path(os.environ.get("AI_FRIEND_STATE_DIR") or workspace).expanduser().resolve()
         self.store = ChatStore(self.workspace, owner=owner)
         self.legacy_store = ChatStore(self.workspace) if owner is not None and include_legacy else None
 

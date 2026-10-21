@@ -362,3 +362,25 @@ class AuthConnectionLifecycleTests(unittest.TestCase):
                     for warning in resource_warnings
                 ],
             )
+
+
+class RememberedSessionTests(unittest.TestCase):
+    def test_remembered_token_survives_service_restart_but_logout_revokes_it(self):
+        import time
+        from section_1_central_mind.auth_service import AuthService, AuthenticationError
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / 'auth.sqlite3'
+            service = AuthService(database, session_seconds=3600)
+            service.bootstrap_admin('remember_admin', 'Long-remember-password-1')
+            start = time.time()
+            ordinary = service.login('remember_admin', 'Long-remember-password-1')
+            remembered = service.login('remember_admin', 'Long-remember-password-1', remember_me=True)
+            self.assertAlmostEqual(ordinary['expires_at'] - start, 3600, delta=5)
+            self.assertAlmostEqual(remembered['expires_at'] - start, 30 * 86400, delta=5)
+            restarted = AuthService(database)
+            self.assertEqual(restarted.validate_session(remembered['token'])['username'], 'remember_admin')
+            with self.assertRaises(AuthenticationError):
+                restarted.validate_session(ordinary['token'])
+            restarted.logout(remembered['token'])
+            with self.assertRaises(AuthenticationError):
+                service.validate_session(remembered['token'])

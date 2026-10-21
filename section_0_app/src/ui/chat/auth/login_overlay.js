@@ -36,6 +36,10 @@ function ensureOverlay() {
           placeholder="Password"
         />
 
+        <label class="auth-remember" style="display:flex;align-items:center;gap:8px;margin:12px 0">
+          <input id="auth-remember" type="checkbox" style="width:auto" />
+          Remember me for 30 days
+        </label>
         <button type="submit" class="send-btn">
           Sign in
         </button>
@@ -73,7 +77,7 @@ function ensureOverlay() {
     overlay.querySelector("#auth-status").textContent =
       "Signing in…";
 
-    login(username, password);
+    login(username, password, overlay.querySelector("#auth-remember").checked);
   });
 
   return overlay;

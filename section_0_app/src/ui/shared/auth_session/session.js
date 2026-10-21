@@ -1,3 +1,4 @@
+import { BUILD_ID } from "../build.js";
 import {
   connect,
   onMessage as onTransportMessage,
@@ -23,7 +24,7 @@ function tauriInvokeAvailable() {
   );
 }
 
-async function setApplicationSession(token) {
+async function setApplicationSession(token, remember = false) {
   if (!token || !tauriInvokeAvailable()) {
     return false;
   }
@@ -31,7 +32,7 @@ async function setApplicationSession(token) {
   try {
     await window.__TAURI__.core.invoke(
       "set_application_session",
-      { token },
+      { token, remember },
     );
 
     return true;
@@ -209,11 +210,12 @@ async function attachApplicationSession() {
   });
 }
 
-export function login(username, password) {
+export function login(username, password, rememberMe = false) {
   sendPublic({
     op: "login",
     username,
     password,
+    remember_me: rememberMe === true,
   });
 }
 
@@ -327,6 +329,19 @@ onConnectionChange((state) => {
 });
 
 onTransportMessage(async (msg) => {
+  if (msg.op === "auth_status_result" || (["login_result", "attach_session_result"].includes(msg.op) && msg.ok)) {
+    let badge = document.getElementById("runtime-build");
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = "runtime-build";
+      badge.style.cssText = "position:fixed;bottom:4px;left:8px;z-index:9999;font-size:11px;max-width:90vw;padding:3px 6px;background:#20232b;color:#aaa;border-radius:4px";
+      document.body.append(badge);
+    }
+    const matches = msg.build_id === BUILD_ID;
+    badge.textContent = matches ? `Build ${BUILD_ID} · UI / Mind connected` : `Build mismatch: UI ${BUILD_ID}, Mind ${msg.build_id || "older/unknown"}. Close AI Friend and restart from this checkout.`;
+    badge.style.color = matches ? "#aaa" : "#ffb36b";
+  }
+
   if (msg.op === "auth_status_result") {
     const wasAuthenticated = authenticated;
 
@@ -360,7 +375,10 @@ onTransportMessage(async (msg) => {
       // additional windows or reconnecting this application runtime. Failure
       // to copy the credential there must not invalidate the authenticated
       // backend connection that already exists.
-      await setApplicationSession(msg.token);
+      const saved = await setApplicationSession(msg.token, msg.remember_me === true);
+      if (msg.remember_me && !saved) {
+        publishMessage({ role: "system", text: "Signed in, but Remember Me could not be saved in macOS Keychain." });
+      }
       establishAuthenticatedState(msg.account);
     } else {
       clearAuthenticatedState({

@@ -1,126 +1,93 @@
-import {
-  sendDomainRequest,
-  onMessage,
-} from "../../shared/auth_session/session.js";
+import { sendDomainRequest, onMessage } from "../../shared/auth_session/session.js";
+import { onProjectChange } from "../project/project.js";
 
 export function createCodingExplorer({ onFileOpen }) {
   const tree = document.getElementById("files-tree");
-  let currentPath = "";
-
+  const cache = new Map();
+  const expanded = new Set([""]);
+  const requests = new Map();
+  let selected = "";
+  let projectRoot = "";
+  onProjectChange(project => {
+    if (project.root === projectRoot) return;
+    projectRoot = project.root;
+    cache.clear(); requests.clear(); expanded.clear(); expanded.add(""); selected = "";
+  });
+  function request(path) {
+    cache.set(path, { loading: true });
+    const id = sendDomainRequest("coder", "list_files", { path });
+    requests.set(id, path);
+  }
   function load(path = "") {
-    currentPath = path || "";
-    sendDomainRequest(
-      "coder",
-      "list_files",
-      { path: currentPath },
-    );
+    expanded.add(path);
+    for (const open of expanded) request(open);
+    render();
   }
-
-  function render(files, parentPath) {
+  function renderBranch(path, parent, depth) {
+    const state = cache.get(path);
+    if (!state || state.loading || state.error) {
+      const note = document.createElement("div");
+      note.style.paddingLeft = `${depth * 16 + 8}px`;
+      note.textContent = state?.error || "Loading…";
+      parent.append(note);
+      return;
+    }
+    if (!state.files.length) {
+      const empty = document.createElement("div");
+      empty.textContent = "Empty folder";
+      empty.style.paddingLeft = `${depth * 16 + 8}px`;
+      parent.append(empty);
+    }
+    for (const file of state.files) {
+      const directory = file.type === "dir";
+      const row = document.createElement("div");
+      row.className = "file" + (selected === file.path ? " active-file" : "");
+      row.style.paddingLeft = `${depth * 16 + 8}px`;
+      row.setAttribute("role", "treeitem");
+      row.tabIndex = 0;
+      if (directory) row.setAttribute("aria-expanded", String(expanded.has(file.path)));
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const icon = directory ? (expanded.has(file.path) ? "▾ 📂" : "▸ 📁") : ({py:"🐍", md:"📝", js:"📜", json:"🔧"}[ext] || "📄");
+      row.textContent = `${icon} ${file.name}`;
+      row.title = file.path;
+      const activate = () => {
+        if (directory) {
+          if (expanded.has(file.path)) expanded.delete(file.path);
+          else { expanded.add(file.path); if (!cache.has(file.path)) request(file.path); }
+          render();
+        } else {
+          selected = file.path; render();
+          if (file.text_preview === false) {
+            onFileOpen?.({ path: file.path, content: "This file is visible in the project tree, but a text preview is unavailable for this file type." });
+          } else sendDomainRequest("coder", "read_file", { path: file.path });
+        }
+      };
+      row.onclick = activate;
+      row.onkeydown = event => {
+        if (["Enter", " "].includes(event.key)) { event.preventDefault(); activate(); }
+      };
+      parent.append(row);
+      if (directory && expanded.has(file.path)) renderBranch(file.path, parent, depth + 1);
+    }
+  }
+  function render() {
     if (!tree) return;
-
-    tree.innerHTML = "";
-
-    if (parentPath) {
-      const up = document.createElement("div");
-      up.className = "file";
-      up.textContent = "⬆ ..";
-
-      up.addEventListener("click", () => {
-        const parts = parentPath.split("/").filter(Boolean);
-        parts.pop();
-        load(parts.join("/"));
-      });
-
-      tree.appendChild(up);
-    }
-
-    for (const file of files || []) {
-      const item = document.createElement("div");
-      item.className = "file";
-
-      const isDirectory = file.type === "dir";
-      const extension =
-        file.name.split(".").pop()?.toLowerCase() || "";
-
-      let icon = "📄";
-
-      if (isDirectory) icon = "📁";
-      else if (extension === "py") icon = "🐍";
-      else if (extension === "md") icon = "📝";
-      else if (extension === "json") icon = "🔧";
-      else if (extension === "html") icon = "🌐";
-      else if (extension === "css") icon = "🎨";
-      else if (extension === "js" || extension === "mjs") icon = "📜";
-      else if (extension === "rs") icon = "🦀";
-
-      item.textContent = `${icon} ${file.name}`;
-      item.title = file.path || file.name;
-
-      if (isDirectory) {
-        item.addEventListener("click", () => load(file.path));
-      } else {
-        item.addEventListener("click", () => {
-          tree
-            .querySelectorAll(".file")
-            .forEach((node) => node.classList.remove("active-file"));
-
-          item.classList.add("active-file");
-          sendDomainRequest(
-            "coder",
-            "read_file",
-            { path: file.path },
-          );
-        });
-      }
-
-      tree.appendChild(item);
-    }
+    tree.replaceChildren();
+    tree.setAttribute("role", "tree");
+    tree.setAttribute("aria-label", "Project files");
+    renderBranch("", tree, 0);
   }
-
-  onMessage((msg) => {
-    if (
-      msg.op !== "domain_result" ||
-      msg.component !== "coder"
-    ) {
-      return;
+  onMessage(msg => {
+    if (msg.op !== "domain_result" || msg.component !== "coder") return;
+    if (msg.operation === "list_files" && requests.has(msg.request_id)) {
+      const path = requests.get(msg.request_id); requests.delete(msg.request_id);
+      cache.set(path, msg.ok ? { files: msg.result?.files || [] } : { error: msg.error || "Could not list folder." });
+      render();
     }
-
-    if (msg.operation === "list_files") {
-      if (!msg.ok) {
-        console.error(
-          "[coding/explorer] list failed:",
-          msg.error || "unknown error",
-        );
-        render([], currentPath);
-        return;
-      }
-
-      render(
-        msg.result?.files || [],
-        msg.result?.path || "",
-      );
-      return;
-    }
-
     if (msg.operation === "read_file") {
-      if (!msg.ok) {
-        console.error(
-          "[coding/explorer] read failed:",
-          msg.error || "unknown error",
-        );
-        return;
-      }
-
-      onFileOpen?.({
-        path: msg.result?.path || "",
-        content: msg.result?.content || "",
-      });
+      if (msg.ok) onFileOpen?.({ path: msg.result?.path || "", content: msg.result?.content || "" });
+      else onFileOpen?.({ path: selected, content: `Could not read this file: ${msg.error || "unknown error"}` });
     }
   });
-
-  return {
-    load,
-    getCurrentPath: () => currentPath,
-  };
+  return { load, getCurrentPath: () => "" };
 }

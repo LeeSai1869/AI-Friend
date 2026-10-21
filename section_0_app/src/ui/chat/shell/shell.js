@@ -83,6 +83,7 @@ onMessage((msg) => {
   }
 
   if (msg.role === "tool") {
+    if (!pendingTurn || (msg.request_id && msg.request_id !== pendingTurn)) return;
     conversation.appendToolStatus(msg.text ?? "");
     return;
   }

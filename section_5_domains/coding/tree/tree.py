@@ -72,9 +72,6 @@ class ProjectTree:
             if entry.is_dir() and entry.name in self.DEFAULT_IGNORED_DIRECTORIES:
                 continue
 
-            if entry.is_file() and entry.suffix.lower() in self.DEFAULT_IGNORED_SUFFIXES:
-                continue
-
             resolved = self._trusted_entry(entry)
             if resolved is None:
                 continue
@@ -83,6 +80,7 @@ class ProjectTree:
                 "name": entry.name,
                 "path": resolved.relative_to(self.workspace.root).as_posix(),
                 "type": "dir" if entry.is_dir() else "file",
+                "text_preview": entry.is_file() and entry.suffix.lower() not in self.DEFAULT_IGNORED_SUFFIXES,
             })
 
         return entries
@@ -107,7 +105,7 @@ class ProjectTree:
             for entry in entries:
                 if entry["type"] == "dir":
                     pending.append(entry["path"])
-                elif entry["type"] == "file":
+                elif entry["type"] == "file" and entry.get("text_preview", True):
                     files.append(entry["path"])
                     if len(files) >= self.MAX_FILES:
                         break

@@ -26,6 +26,7 @@ _SCRYPT_P = 1
 _SALT_BYTES = 16
 _KEY_BYTES = 32
 _DEFAULT_SESSION_SECONDS = 12 * 60 * 60
+_REMEMBERED_SESSION_SECONDS = 30 * 24 * 60 * 60
 
 
 class AuthenticationError(Exception):
@@ -243,7 +244,7 @@ class AuthService:
                         detail={"role": "user"})
             return {"username": username, "role": "user"}
 
-    def login(self, username: str, password: str) -> dict:
+    def login(self, username: str, password: str, *, remember_me: bool = False) -> dict:
         if not isinstance(username, str) or not isinstance(password, str):
             raise AuthenticationError("invalid username or password")
 
@@ -272,7 +273,7 @@ class AuthService:
                 raise AuthenticationError("invalid username or password")
 
             token = secrets.token_urlsafe(32)
-            expires = time.time() + self.session_seconds
+            expires = time.time() + (_REMEMBERED_SESSION_SECONDS if remember_me is True else self.session_seconds)
             db.execute(
                 "UPDATE accounts SET active_token_hash=?, session_expires=? WHERE id=?",
                 (self._token_hash(token), expires, row["id"]),

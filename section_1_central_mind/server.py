@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from auth_service import AuthService, AuthenticationError
+from runtime_identity import BUILD_ID
 from guard.contract import GuardPrincipal
 from guard.layer import GuardLayer
 from guard.production_policy import (
@@ -119,6 +120,8 @@ class AppChatbox(Chatbox):
         return None
 
     def _emit(self, message):
+        message = dict(message)
+        message["request_id"] = getattr(self, "turn_id", None)
         if self.loop is None or self.loop.is_closed():
             return
         def schedule():
@@ -266,6 +269,7 @@ async def handle_client(
 
                 await websocket.send(json.dumps({
                     "op": "auth_status_result",
+                    "build_id": BUILD_ID,
                     "authenticated": authenticated,
                     "account": status_account,
                     "registration_enabled": (
@@ -291,6 +295,7 @@ async def handle_client(
                     created = auth_service.register(
                         data.get("username"),
                         data.get("password"),
+                        remember_me=data.get("remember_me") is True,
                     )
                 except (AuthenticationError, ValueError) as exc:
                     await websocket.send(json.dumps({
@@ -384,6 +389,8 @@ async def handle_client(
 
                 await websocket.send(json.dumps({
                     "op": "login_result",
+                    "build_id": BUILD_ID,
+                    "remember_me": data.get("remember_me") is True,
                     "ok": True,
                     "token": session_token,
                     "expires_at": login_result["expires_at"],
@@ -470,6 +477,7 @@ async def handle_client(
 
                 await websocket.send(json.dumps({
                     "op": "attach_session_result",
+                    "build_id": BUILD_ID,
                     "ok": True,
                     "account": account,
                 }))
@@ -1056,6 +1064,7 @@ async def handle_client(
                 print(f"[server] << [{intent}] {text}")
 
                 try:
+                    chatbox.turn_id = data.get("request_id")
                     chatbox.tool_status(f"Thinking ({intent})...")
                     mind.broker.reset_budget()
 
