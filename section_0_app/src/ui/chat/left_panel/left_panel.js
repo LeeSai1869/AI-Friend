@@ -1,3 +1,4 @@
+import { renderChatRows } from "../../shared/chat_history/chat_history.js";
 import {
   sendRaw,
   onMessage,
@@ -17,6 +18,7 @@ export function createChatLeftPanel({
   conversation,
   topBar,
   onOpenIntake,
+  isBusy = () => false,
 }) {
   function requestInventory() {
     sendRaw({ op: "inventory" });
@@ -102,40 +104,27 @@ export function createChatLeftPanel({
       return;
     }
 
-    list.innerHTML = "";
-
-    for (const chat of chats || []) {
-      const item = document.createElement("button");
-      item.className = "sidebar-chat";
-      item.dataset.chatId = chat.chat_id;
-
-      const title = document.createElement("div");
-      title.className = "sidebar-chat-title";
-      title.textContent = chat.topic || "(untitled)";
-
-      const meta = document.createElement("div");
-      meta.className = "sidebar-chat-meta";
-      meta.textContent = chat.domain || "general";
-
-      item.appendChild(title);
-      item.appendChild(meta);
-
-      if (conversation.getChatId() === chat.chat_id) {
-        item.classList.add("active");
-      }
-
-      item.addEventListener("click", () => {
-        sendRaw({
-          op: "load_chat",
-          chat_id: chat.chat_id,
-        });
-      });
-
-      list.appendChild(item);
-    }
+    renderChatRows({ list, chats, conversation, isBusy, itemClass: "sidebar-chat" });
   }
 
   onMessage((msg) => {
+    if (msg.op === "chats_changed") {
+      requestChats();
+      return;
+    }
+    if (msg.op === "chat_deleted") {
+      if (!msg.ok) {
+        conversation.appendMessage("system", msg.error || "Could not delete chat.");
+        requestChats();
+        return;
+      }
+      if (conversation.getChatId() === msg.chat_id) {
+        conversation.newChat();
+        topBar.setTopic("New chat", "general");
+      }
+      requestChats();
+      return;
+    }
     if (msg.op === "inventory_result" && Array.isArray(msg.domains)) {
       renderDomains(msg.domains);
       return;
@@ -146,6 +135,7 @@ export function createChatLeftPanel({
         return;
       }
 
+      if (isBusy()) return;
       conversation.restoreChat(msg);
       topBar.setTopic(
         msg.topic || "New chat",
@@ -164,6 +154,7 @@ export function createChatLeftPanel({
   document
     .getElementById("btn-new-chat")
     ?.addEventListener("click", () => {
+      if (isBusy()) return;
       conversation.newChat();
       topBar.setTopic("New chat", "general");
     });

@@ -2,6 +2,16 @@ schema_version: 2
 updated_at: '2026-10-11T00:00:00Z'
 maintainer: trainer
 llms:
+  qwen3.5_27b:
+    display_name: Qwen 3.5 27B
+    provider: ollama
+    ollama_tag: qwen3.5:27b
+    installed: true
+    kind: general
+    size_gb: 19
+    capabilities: [completion, vision, thinking, tools]
+    evidence_status: ungraded
+    notes: Trainer supplied the runtime inventory. Capability availability is advertised by the endpoint; task quality has not yet been measured.
   qwen2.5-coder_7b:
     display_name: Qwen2.5 Coder 7B
     origin: Alibaba
@@ -1129,6 +1139,11 @@ output_guards:
     - remove **bold** and *italic*
     - remove backtick code fences when not a code task
 routing:
+  # Applied to structured subordinate tasks, independent of model identity.
+  structured_generation:
+    max_tokens: 4096
+    context_tokens: 16384
+    think: false
   max_attempts_per_capability: 3
   on_model_failure:
   - try_next_in_priority

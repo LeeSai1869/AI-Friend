@@ -10,6 +10,20 @@ import re
 from pathlib import Path
 
 import yaml
+import requests
+
+
+def failure_code(exc):
+    """Stable actionable diagnostics without provider URLs, prompts or secrets."""
+    if isinstance(exc, requests.Timeout):
+        return "model_request_timed_out"
+    if isinstance(exc, requests.ConnectionError):
+        return "model_service_unreachable"
+    if isinstance(exc, requests.HTTPError):
+        status = getattr(exc.response, "status_code", None)
+        return f"provider_http_{status}" if status else "provider_http_error"
+    safe = {"output_token_limit_reached", "reasoning_without_answer", "empty_model_answer"}
+    return str(exc) if str(exc) in safe else type(exc).__name__
 
 try:
     from .resource_selector import rank_resources
@@ -59,13 +73,16 @@ class ModelRouter:
         endpoint = provider.api_url
         if endpoint not in cache:
             try:
-                cache[endpoint] = set(provider.models())
-            except Exception:
-                cache[endpoint] = set()
+                cache[endpoint] = (set(provider.models()), None)
+            except Exception as exc:
+                cache[endpoint] = (set(), failure_code(exc))
+        names, error = cache[endpoint]
+        if error:
+            raise RuntimeError(error)
         model = execution_model_for(resource)
         if ":" not in model.rsplit("/", 1)[-1]:
             model += ":latest"
-        return model in cache[endpoint]
+        return model in names
 
     def _candidates(self, requirement, source_scores=None):
         requirement = dict(requirement)
@@ -115,14 +132,30 @@ class ModelRouter:
         availability_cache = {}
         generation_count = 0
         for candidate in self._candidates(requirement, source_scores):
-            if not self._available(candidate.resource, availability_cache):
+            try:
+                available = self._available(candidate.resource, availability_cache)
+            except RuntimeError as exc:
+                code = str(exc)
+                if code not in {"model_service_unreachable", "model_request_timed_out", "provider_http_error"} and not re.fullmatch(r"provider_http_\d+", code):
+                    code = "availability_probe_failed"
+                attempts.append({"model": candidate.key, "ok": False, "error": code})
+                continue
+            if not available:
                 attempts.append({"model": candidate.key, "ok": False, "error": "not_available_at_runtime"})
                 continue
             if generation_count >= budget:
                 break
             generation_count += 1
             try:
-                text = call_fn(candidate.key, candidate.resource, messages)
+                resource = dict(candidate.resource)
+                generation = dict(routing.get("structured_generation") or {}) if requirement.get("structured_output") else {}
+                generation.update(resource.get("generation") or {})
+                generation["structured_output"] = requirement.get("structured_output")
+                declared_context = resource.get("context_tokens")
+                if isinstance(declared_context, int) and isinstance(generation.get("context_tokens"), int):
+                    generation["context_tokens"] = min(declared_context, generation["context_tokens"])
+                resource["_generation"] = generation
+                text = call_fn(candidate.key, resource, messages)
                 output = _answer(text, requirement.get("structured_output"))
                 return {"ok": True, "output": output, "model": candidate.key,
                         "provider": provider_name_for(candidate.resource),
@@ -130,7 +163,7 @@ class ModelRouter:
                         "reasons": list(candidate.reasons), "attempts": attempts}
             except Exception as exc:
                 # Do not expose provider exception strings: URLs may contain credentials.
-                attempts.append({"model": candidate.key, "ok": False, "error": type(exc).__name__})
+                attempts.append({"model": candidate.key, "ok": False, "error": failure_code(exc)})
         return {"ok": False, "output": "", "error": "no available model satisfied the resource requirement",
                 "attempts": attempts, "required_resource": dict(requirement)}
 

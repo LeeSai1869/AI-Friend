@@ -8,7 +8,7 @@ Tested successful observations can pass domain evaluation into the canonical Mem
 
 ## Validation
 
-The complete suite passed: **455 tests and 15 subtests**, including browser and native-container integration. The browser test exercised login, two connected windows, clarification, a failed candidate, repair, guarded application, persisted-file tests, final Mind communication, Chat rendering, and live editor refresh. Models and the native Tauri window/dialog bridge were deterministic fixtures; auth, HTTP/WebSockets, production UI modules, Guard, filesystem, memory, and Docker execution were real. Screenshot: `test_results/ui-round-trip.png`.
+The complete suite passed: **472 tests and 15 subtests**, including browser and native-container integration. The browser test exercised login, two connected windows, clarification, a failed candidate, repair, guarded application, persisted-file tests, final Mind communication, Chat rendering, and live editor refresh. Models and the native Tauri window/dialog bridge were deterministic fixtures; auth, HTTP/WebSockets, production UI modules, Guard, filesystem, memory, and Docker execution were real. Screenshot: `test_results/ui-round-trip.png`.
 
 Native macOS packaging, duplicate-launch behavior, and inference against the models installed on your Mac still require a Mac check. Linux native compilation is blocked by missing GLib development libraries. Tauri now registers its single-instance plugin and prefers the repository virtual environment for its Python backend. Normal startup no longer launches the documentation-rewriting Designer watcher.
 
@@ -36,3 +36,49 @@ AI_FRIEND_RUN_BROWSER_TESTS=1 AI_FRIEND_RUN_CONTAINER_TESTS=1 \
 ```
 
 The optional checks require Docker and an exported immutable `AI_FRIEND_TEST_IMAGE`. Default runs skip them. See [CODING.md](CODING.md) for execution limits and operational details.
+
+## Laptop feedback fixes
+
+The model HTTP connectors now carry the structured-output requirement to Ollama
+(`format: json`) and OpenAI-compatible endpoints (`response_format`). YAML's
+`routing.structured_generation` configures the structured-task output/context
+budget and thinking option; a resource's `generation` settings can override it.
+Ollama context is capped to the resource's declared context window. Empty,
+reasoning-only and truncated answers are distinguished from unavailable models,
+unreachable services, timeouts and invalid JSON. Mind includes sanitized per-model
+attempts in a failure response, and live status names the selected resource.
+The trainer-reported `qwen3.5:27b` resource is registered without an invented
+quality score. Installed runtime capability flags do not constitute quality
+measurements or change Guard permissions.
+
+After updating the branch, test the actual Mac service without running tools or
+writing memory:
+
+```sh
+source .venv/bin/activate
+python scripts/check_models.py
+python scripts/check_models.py --semantic
+```
+
+The second command uses the production semantic prompt and trusted manifest
+catalog, with models selected from YAML. It can take several minutes. A passing
+cloud fixture does not establish successful inference on the separate Mac.
+
+Memory intake now accepts explicitly selected disk text files, folders of text
+files, HTTP(S) URLs and pasted text, in addition to workspace files. Previewing
+uses capability routing; when automatic classification fails, manual review
+remains available with an explicit warning. The server retains the complete
+source per authenticated session and submits that source rather than its preview.
+Intake content is limited to 512 KiB and 50 files. Binary documents, images and
+video need extraction adapters; they are not treated as readable text. URL fetching
+uses Guard and bounded HTTP text/HTML extraction, without requiring html2text.
+Imported proposals retain source provenance and hashes. Submission is not a claim
+of verified knowledge: the result displays the actual learning decision and reason.
+
+Chat and Coding have a three-dot menu with Delete chat. Authenticated history is
+scoped to the signed-in account, and deletion is an explicit human application
+operation. It does not grant Mind a deletion capability or delete project files or
+permanent memory. History updates and deletion synchronize between windows in the
+same validated session. Legacy unowned chat files are retained rather than silently
+assigned to an arbitrary account. Only the Administrator sees these older
+histories, labeled **Older, unassigned**, and can remove them using the same menu.

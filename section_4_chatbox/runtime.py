@@ -25,10 +25,16 @@ from .state import Chat, ChatStore
 class ChatRuntime:
     """Communication boundary between an application surface and Central Mind."""
 
-    def __init__(self, mind: Any, workspace: Path):
+    def __init__(self, mind: Any, workspace: Path, *, owner: Optional[str] = None, include_legacy: bool = False):
         self.mind = mind
         self.workspace = Path(workspace)
-        self.store = ChatStore(self.workspace)
+        self.store = ChatStore(self.workspace, owner=owner)
+        self.legacy_store = ChatStore(self.workspace) if owner is not None and include_legacy else None
+
+    def delete_chat(self, chat_id: str) -> bool:
+        if self.store.delete(chat_id):
+            return True
+        return bool(self.legacy_store and self.legacy_store.delete(chat_id))
 
     def open_chat(
         self,
@@ -122,6 +128,19 @@ class ChatRuntime:
             key=lambda row: row.get("updated_at", 0),
             reverse=True,
         )
+        if self.legacy_store is not None:
+            for chat_id in self.legacy_store.list_ids():
+                if self.store.load(chat_id) is not None:
+                    continue
+                chat = self.legacy_store.load(chat_id)
+                if chat is not None:
+                    rows.append({
+                        "chat_id": chat.chat_id,
+                        "topic": "[Older, unassigned] " + (chat.topic or "(untitled)"),
+                        "domain": chat.domain or "general", "legacy": True,
+                        "created_at": chat.created_at,
+                        "updated_at": max((turn.ts for turn in chat.turns), default=chat.created_at),
+                    })
         return rows
 
     def load_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
@@ -131,6 +150,8 @@ class ChatRuntime:
             return None
 
         chat = self.store.load(requested)
+        if chat is None and self.legacy_store is not None:
+            chat = self.legacy_store.load(requested)
         if chat is None:
             return None
 

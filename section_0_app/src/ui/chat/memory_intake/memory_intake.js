@@ -39,17 +39,17 @@ function showSourceScreen() {
         <button data-action="existing" class="intake-btn">
           🗂  A file in the workspace
         </button>
-        <button data-action="file" class="intake-btn" disabled>
-          📄 A file on disk (coming)
+        <button data-action="file" class="intake-btn">
+          📄 A file on disk
         </button>
-        <button data-action="folder" class="intake-btn" disabled>
-          📁 A folder (coming)
+        <button data-action="folder" class="intake-btn">
+          📁 A folder
         </button>
-        <button data-action="url" class="intake-btn" disabled>
-          🌐 A URL (coming)
+        <button data-action="url" class="intake-btn">
+          🌐 A URL
         </button>
-        <button data-action="text" class="intake-btn" disabled>
-          ✏  Paste text (coming)
+        <button data-action="text" class="intake-btn">
+          ✏  Paste text
         </button>
       </div>
     </div>
@@ -63,9 +63,9 @@ function showSourceScreen() {
   body.querySelectorAll(".intake-btn[data-action]").forEach((b) => {
     b.onclick = () => {
       const action = b.getAttribute("data-action");
-      if (action === "existing") {
-        showExistingPicker();
-      }
+      if (action === "existing") showExistingPicker();
+      else if (action === "file" || action === "folder") showUploadPicker(action);
+      else showTextPicker(action);
     };
   });
 }
@@ -96,15 +96,67 @@ function showExistingPicker() {
   };
 }
 
-function propose(path) {
+function showError(message) {
   const body = document.getElementById("intake-body");
-  body.innerHTML = `
-    <div class="intake-section">
-      <div class="intake-label">Reading and classifying...</div>
-      <div class="intake-hint">${escapeHtml(path)}</div>
-    </div>
-  `;
-  sendRaw({ op: "intake_propose", path });
+  body.innerHTML = `<div class="intake-section"><div class="intake-label">Could not import source</div><div class="intake-hint">${escapeHtml(message)}</div></div><button id="intake-retry" class="intake-btn">Back to sources</button>`;
+  document.getElementById("intake-retry").onclick = showSourceScreen;
+}
+
+function showTextPicker(kind) {
+  const body = document.getElementById("intake-body");
+  const url = kind === "url";
+  body.innerHTML = `<div class="intake-section">
+    <label class="intake-label" for="intake-source">${url ? "Source URL" : "Training text"}</label>
+    ${url ? '<input id="intake-source" type="url" placeholder="https://example.com/article" />' : '<textarea id="intake-source" rows="12" placeholder="Paste material to learn from"></textarea>'}
+    <label for="intake-source-name">${url ? "" : "Source title"}</label>
+    ${url ? "" : '<input id="intake-source-name" placeholder="Lesson or reference title" />'}
+    <div class="intake-hint">Source material is submitted for evaluation, not accepted as verified knowledge.</div>
+    </div><div class="intake-footer"><button id="intake-source-back" class="intake-btn">Back</button><button id="intake-source-submit" class="intake-btn primary">Read and propose</button></div>`;
+  document.getElementById("intake-source-back").onclick = showSourceScreen;
+  document.getElementById("intake-source-submit").onclick = () => {
+    const value = document.getElementById("intake-source").value.trim();
+    if (!value) return;
+    if (new TextEncoder().encode(value).length > 512 * 1024) return showError("Text exceeds 512 KiB.");
+    if (url && !/^https?:\/\//i.test(value)) return showError("Enter a complete HTTP or HTTPS URL.");
+    const name = url ? value : (document.getElementById("intake-source-name").value.trim() || "Pasted text");
+    proposeSource({ source: { kind, name, ...(url ? {} : { content: value }) } });
+  };
+}
+
+function showUploadPicker(kind) {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = `<div class="intake-section"><label class="intake-label" for="intake-upload">${kind === "folder" ? "Choose a folder" : "Choose a file on disk"}</label>
+    <input id="intake-upload" type="file" ${kind === "folder" ? "webkitdirectory multiple" : ""} />
+    <div class="intake-hint">UTF-8 text, code, Markdown, JSON, CSV or similar text sources. Up to 50 files and 512 KiB total. Images, videos and binary documents require extraction adapters.</div>
+    </div><div class="intake-footer"><button id="intake-upload-back" class="intake-btn">Back</button><button id="intake-upload-submit" class="intake-btn primary">Read and propose</button></div>`;
+  document.getElementById("intake-upload-back").onclick = showSourceScreen;
+  document.getElementById("intake-upload-submit").onclick = async () => {
+    const files = Array.from(document.getElementById("intake-upload").files || []);
+    if (!files.length) return;
+    if (files.length > 50 || files.reduce((total, file) => total + file.size, 0) > 512 * 1024) return showError("Choose at most 50 files with a combined size of 512 KiB.");
+    const submit = document.getElementById("intake-upload-submit");
+    submit.disabled = true;
+    try {
+      const entries = [];
+      for (const file of files) {
+        const content = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+        if (content.includes("\0")) throw new Error("Binary files are not supported. Select UTF-8 text sources.");
+        entries.push({ name: file.webkitRelativePath || file.name, content });
+      }
+      const name = kind === "folder" ? entries[0].name.split("/")[0] : files[0].name;
+      proposeSource({ source: { kind, name, ...(kind === "folder" ? { files: entries } : { content: entries[0].content }) } });
+    } catch (error) {
+      showError(error.message || "Could not read source files.");
+    }
+  };
+}
+
+function propose(path) { proposeSource({ path }); }
+
+function proposeSource(payload) {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = '<div class="intake-section"><div class="intake-label">Reading and classifying…</div></div>';
+  sendRaw({ op: "intake_propose", ...payload });
 }
 
 // ---- screen 2: review proposal --------------------------------
@@ -120,6 +172,7 @@ function showProposalScreen(p) {
     <div class="intake-section">
       <div class="intake-label">Source</div>
       <div class="intake-hint">${escapeHtml(p.source_path)} · ${p.content_bytes} bytes · ${escapeHtml(p.source_kind || "file")}</div>
+      <div class="intake-hint">${escapeHtml(p.warning || "")}</div>
       <pre class="intake-preview">${escapeHtml(p.preview || "")}</pre>
     </div>
 
@@ -163,7 +216,7 @@ function showProposalScreen(p) {
     </div>
   `;
 
-  document.getElementById("intake-back-2").onclick = showExistingPicker;
+  document.getElementById("intake-back-2").onclick = showSourceScreen;
   document.getElementById("intake-cancel-2").onclick = closeIntake;
   document.getElementById("intake-store").onclick = () => storeProposal(p);
 }
@@ -193,7 +246,7 @@ function storeProposal(original) {
     </div>
   `;
 
-  sendRaw({ op: "intake_commit", proposal });
+  sendRaw({ op: "intake_commit", draft_id: original.draft_id, proposal });
 }
 
 // ---- screen 3: confirmation -----------------------------------
@@ -202,8 +255,8 @@ function showSubmittedScreen(s) {
   const body = document.getElementById("intake-body");
   body.innerHTML = `
     <div class="intake-section">
-      <div class="intake-label">Proposal submitted for review</div>
-      <div class="intake-hint">Central Mind must review and approve this proposal before it becomes a memory entry. No memory has been created yet.</div>
+      <div class="intake-label">Intake evaluation result</div>
+      <div class="intake-hint">${escapeHtml(s.memory_id ? "The evaluated source produced a memory entry." : "No permanent memory entry was created. " + (s.decision_reason || "The proposal remains subject to evaluation."))}</div>
       <div class="intake-field">
         <span class="intake-key">Proposal ID</span>
         <span class="intake-value">${escapeHtml(s.proposal_id || "?")}</span>

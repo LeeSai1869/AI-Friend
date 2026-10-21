@@ -21,11 +21,12 @@ import json
 
 class Caller:
 
-    def __init__(self, inventory, loader, router=None, ollama_url: str = "http://localhost:11434", memory=None):
+    def __init__(self, inventory, loader, router=None, ollama_url: str = "http://localhost:11434", memory=None, on_status=None):
         self.inventory = inventory
         self._load = loader  # a callable that returns the organ instance
         self.router = router
         self.memory = memory
+        self.on_status = on_status
         self.last_execution = {}
         self.ollama_url = ollama_url
         # The source of the last successful routed call. Domains
@@ -159,6 +160,8 @@ class Caller:
                 f"model resource {llm_key} has no execution identifier"
             )
 
+        if callable(self.on_status):
+            self.on_status(f"Using model resource {llm_key} ({provider.name})…")
         output = provider.chat(messages, model_name=execution_model, max_tokens=max_tokens)
         self.last_execution = {"provider": provider.name, "execution_model": execution_model}
         return output

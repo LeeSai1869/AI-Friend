@@ -82,6 +82,7 @@ def build_resource_provider(
             api_url=resource.get("api_url"),
             model_name=execution_model_for(resource),
             timeout=resource.get("timeout", timeout),
+            generation=resource.get("_generation"),
         )
 
     if provider in {"transformers", "huggingface", "hf"}:
@@ -142,6 +143,7 @@ def build_resource_provider(
             api_key=resource.get("api_key") or "",
             model_name=execution_model_for(resource),
             timeout=resource.get("timeout", timeout),
+            generation=resource.get("_generation"),
         )
 
     raise ValueError(

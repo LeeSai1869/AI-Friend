@@ -10,6 +10,31 @@ No API keys. No registration. Uses DuckDuckGo's HTML endpoint
 from __future__ import annotations
 
 import re
+from html.parser import HTMLParser
+
+
+class _TextExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.hidden = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"script", "style", "noscript"}:
+            self.hidden += 1
+        if not self.hidden and tag in {"p", "div", "br", "h1", "h2", "h3", "li", "tr"}:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in {"script", "style", "noscript"}:
+            self.hidden = max(0, self.hidden - 1)
+        if not self.hidden and tag in {"p", "div", "li", "tr"}:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self.hidden:
+            self.parts.append(data)
+
 from typing import Any, Dict, List
 
 from _base.tool import Tool
@@ -118,23 +143,22 @@ class WebFetch(Tool):
         if not re.match(r"^https?://", url):
             url = "https://" + url
 
-        max_chars = int(args.get("max_chars") or 20000)
+        max_chars = max(1, min(int(args.get("max_chars") or 20000), 100000))
 
         try:
             import requests
-            import html2text
         except ImportError:
             return {
                 "ok": False,
                 "data": None,
-                "error": "requests or html2text is not installed. "
-                         "Run: pip3 install requests html2text",
+                "error": "requests is not installed. Run: pip3 install requests",
             }
 
         try:
             resp = requests.get(
                 url,
                 timeout=20,
+                stream=True,
                 headers={
                     "User-Agent": (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -148,13 +172,28 @@ class WebFetch(Tool):
             return {"ok": False, "data": None, "error": f"fetch failed: {e}"}
 
         try:
-            h = html2text.HTML2Text()
-            h.ignore_links = False
-            h.ignore_images = True
-            h.body_width = 0
-            text = h.handle(resp.text)
-        except Exception as e:
-            return {"ok": False, "data": None, "error": f"parse failed: {e}"}
+            chunks = []
+            size = 0
+            try:
+                for chunk in resp.iter_content(16384):
+                    size += len(chunk)
+                    if size > 1024 * 1024:
+                        raise ValueError("URL response exceeds 1 MiB; import a smaller text source")
+                    chunks.append(chunk)
+            finally:
+                resp.close()
+            raw = b"".join(chunks).decode(resp.encoding or "utf-8", errors="replace")
+            content_type = resp.headers.get("Content-Type", "").lower()
+            if "html" in content_type:
+                parser = _TextExtractor()
+                parser.feed(raw)
+                text = "".join(parser.parts)
+            elif content_type.startswith("text/") or any(kind in content_type for kind in ("json", "xml")):
+                text = raw
+            else:
+                raise ValueError("URL must serve text or HTML; binary documents require extraction")
+        except Exception as exc:
+            return {"ok": False, "data": None, "error": str(exc)}
 
         # Collapse excess whitespace.
         text = re.sub(r"\n{3,}", "\n\n", text).strip()

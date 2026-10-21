@@ -675,6 +675,8 @@ async def handle_client(
                     runtime = ChatRuntime(
                         mind,
                         project_root,
+                        owner=account["username"],
+                        include_legacy=account["role"] == "administrator",
                     )
                     chats = runtime.list_chats()
                     print(f"[server] sending {len(chats)} chats")
@@ -682,6 +684,24 @@ async def handle_client(
                         "op": "chats_result",
                         "chats": chats,
                     }))
+                    continue
+
+                # User-requested chat deletion is an application operation,
+                # never an autonomous Mind/domain filesystem capability.
+                if op == "delete_chat":
+                    requested = str(data.get("chat_id") or "")
+                    runtime = ChatRuntime(mind, project_root, owner=account["username"], include_legacy=account["role"] == "administrator")
+                    try:
+                        deleted = runtime.delete_chat(requested)
+                        response = {"op": "chat_deleted", "ok": deleted, "chat_id": requested}
+                        if not deleted:
+                            response["error"] = "chat not found"
+                    except ValueError:
+                        response = {"op": "chat_deleted", "ok": False, "chat_id": requested, "error": "invalid chat identity"}
+                    if response["ok"] and runtimes is not None:
+                        await runtimes.publish(session_token, response)
+                    else:
+                        await websocket.send(json.dumps(response))
                     continue
 
                 # ---- load_chat ------------------------------------------------
@@ -701,6 +721,8 @@ async def handle_client(
                     runtime = ChatRuntime(
                         mind,
                         project_root,
+                        owner=account["username"],
+                        include_legacy=account["role"] == "administrator",
                     )
                     chat = runtime.load_chat(requested_chat_id)
 
@@ -722,63 +744,59 @@ async def handle_client(
 
                 # ---- intake_propose -------------------------------------------
                 if op == "intake_propose":
-                    path = (data.get("path") or "").strip()
-                    print(f"[server] intake_propose: {path}")
-                    if not path:
-                        await websocket.send(json.dumps({
-                            "op": "intake_proposal",
-                            "error": "path is required",
-                        }))
-                        continue
-
                     try:
-                        result = mind.broker.bind_central_mind().call("intake_propose", {
-                            "path": path,
-                            "caller": mind.caller,
-                        })
-                    except Exception as e:
-                        await websocket.send(json.dumps({
-                            "op": "intake_proposal",
-                            "error": f"tool failed: {e}",
-                        }))
-                        continue
-
-                    if not result.get("ok"):
-                        await websocket.send(json.dumps({
-                            "op": "intake_proposal",
-                            "error": result.get("error", "unknown error"),
-                        }))
-                        continue
-
-                    # Read the proposal from disk (the tool stored it there).
-                    pending_path = mind.workspace_root / ".central_mind" / "intake_pending.json"
-                    proposal = {}
-                    if pending_path.exists():
-                        try:
-                            proposal = json.loads(pending_path.read_text(encoding="utf-8"))
-                        except Exception:
-                            proposal = {}
-
-                    await websocket.send(json.dumps({
-                        "op": "intake_proposal",
-                        "proposal": {
-                            "source_path": proposal.get("source_path"),
-                            "source_kind": proposal.get("source_kind"),
-                            "memory_class": proposal.get("memory_class", "raw"),
-                            "domain": proposal.get("domain", "Gen"),
-                            "kind": proposal.get("kind", "fact"),
-                            "title": proposal.get("title", ""),
-                            "tags": proposal.get("tags", []),
-                            "content_bytes": len(proposal.get("content", "")),
-                            "preview": proposal.get("content", "")[:500],
-                        },
-                    }))
+                        source = data.get("source")
+                        if source is not None:
+                            if not isinstance(source, dict):
+                                raise ValueError("source must be an object")
+                            if source.get("kind") == "url":
+                                fetched = await asyncio.to_thread(
+                                    mind.broker.bind_central_mind().call, "web_fetch",
+                                    {"url": str(source.get("name") or ""), "max_chars": 100000},
+                                )
+                                if not fetched.get("ok"):
+                                    raise ValueError(fetched.get("error") or "URL fetch failed")
+                                fetched_data = fetched.get("data") or {}
+                                if fetched_data.get("truncated"):
+                                    raise ValueError("URL exceeds intake size limit; import a smaller source")
+                                source = {"kind": "url", "name": fetched_data.get("url", source.get("name")),
+                                          "content": fetched_data.get("text")}
+                            elif source.get("kind") not in {"file", "folder", "text"}:
+                                raise ValueError("unsupported source kind")
+                        result = await asyncio.to_thread(
+                            mind.broker.bind_central_mind().call, "intake_propose",
+                            {"path": str(data.get("path") or ""), "source": source, "caller": mind.caller},
+                        )
+                        if not result.get("ok"):
+                            raise ValueError(result.get("error") or "source proposal failed")
+                        proposal = (result.get("data") or {}).get("proposal") or {}
+                        # Retain exact source server-side; previews must not truncate ingestion.
+                        import uuid
+                        draft_id = uuid.uuid4().hex
+                        drafts = getattr(mind, "_intake_drafts", {})
+                        while len(drafts) >= 8:
+                            drafts.pop(next(iter(drafts)))
+                        drafts[draft_id] = proposal
+                        mind._intake_drafts = drafts
+                        public = {key: value for key, value in proposal.items() if key != "content"}
+                        public["draft_id"] = draft_id
+                        await websocket.send(json.dumps({"op": "intake_proposal", "proposal": public}))
+                    except Exception as exc:
+                        await websocket.send(json.dumps({"op": "intake_proposal", "error": str(exc)}))
                     continue
 
                 # ---- intake_commit --------------------------------------------
                 if op == "intake_commit":
                     print("[server] intake_commit")
                     proposal = data.get("proposal") or {}
+                    if data.get("draft_id"):
+                        original = getattr(mind, "_intake_drafts", {}).get(data["draft_id"])
+                        if original is None:
+                            await websocket.send(json.dumps({"op": "intake_proposal_submitted", "error": "source draft expired; choose it again"}))
+                            continue
+                        proposal = {**original, **{key: proposal[key] for key in ("domain", "kind", "title", "tags") if key in proposal}}
+                    # Identity is derived from authentication, never client labels.
+                    proposal["originator"] = [{"type": account["role"], "name": account["username"]}]
 
                     if not proposal.get("content"):
                         await websocket.send(json.dumps({
@@ -1047,6 +1065,8 @@ async def handle_client(
                     runtime = ChatRuntime(
                         mind,
                         project_root,
+                        owner=account["username"],
+                        include_legacy=account["role"] == "administrator",
                     )
 
                     requested_chat = runtime.open_chat(requested_chat_id)
@@ -1064,6 +1084,8 @@ async def handle_client(
                         context=data.get("context") if isinstance(data.get("context"), dict) else None,
                     )
 
+                    if runtimes is not None:
+                        await runtimes.publish(session_token, {"op": "chats_changed"})
                     if result.get("ok") and result.get("artifacts") and runtimes is not None:
                         await runtimes.publish(session_token, {"op": "artifacts_changed", "artifacts": result["artifacts"]})
                     if result.get("ok"):

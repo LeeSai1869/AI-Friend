@@ -58,17 +58,19 @@ def browser_stack(tmp_path, monkeypatch):
             text = '\n'.join(message['content'] for message in request['messages'])
             events['prompts'].append(text)
             if 'PROPOSE a semantic' in text:
+                assert request.get('format') == 'json', 'Mind JSON requirement must reach the provider'
                 payload = json.loads(request['messages'][-1]['content'])
                 objective = payload['objective']
                 pending = payload['supplied_context'].get('pending_clarification')
-                needs_answer = '42' not in objective and not objective.lower().startswith('hello')
+                reading = 'read my ptoject files' in objective.lower()
+                needs_answer = '42' not in objective and not objective.lower().startswith('hello') and not reading
                 greeting = objective.lower().startswith('hello')
                 steps = [] if needs_answer else ([{
                     'step_id': 'say', 'objective': 'Greet the user', 'kind': 'communicate',
                     'component': None, 'capability': None, 'depends_on': [], 'confidence': .95,
                 }] if greeting else [
-                    {'step_id': 'implement', 'objective': 'Fix answer.py so answer() returns 42',
-                     'kind': 'domain', 'component': 'coder', 'capability': 'write_code',
+                    {'step_id': 'implement', 'objective': objective if reading else 'Fix answer.py so answer() returns 42',
+                     'kind': 'domain', 'component': 'coder', 'capability': 'inspect_code' if reading else 'write_code',
                      'depends_on': [], 'confidence': .95},
                     {'step_id': 'explain', 'objective': 'Explain the verified outcome and changed files',
                      'kind': 'communicate', 'component': None, 'capability': None,
@@ -86,11 +88,17 @@ def browser_stack(tmp_path, monkeypatch):
                     'understanding_confidence': .4 if needs_answer else .95,
                     'rationale': ['the task depends on the requested value' if needs_answer else 'sufficient context'],
                 })
+            elif 'Classify this untrusted training source' in text:
+                output = json.dumps({'domain': 'Gen', 'kind': 'fact', 'title': 'Imported lesson', 'tags': ['training']})
+            elif 'Select the existing files most relevant' in text:
+                output = json.dumps({'files': ['answer.py'], 'reason': 'Inspect the project implementation'})
+            elif 'Files actually inspected:' in text:
+                assert 'def answer()' in text
+                output = 'I read answer.py from the open project. It defines answer() and returns 42.'
             elif "Render Central Mind's final response" in text:
                 payload = json.loads(request['messages'][-1]['content'])
                 events['communication_evidence'].append(payload['verified_evidence'])
-                output = ('Implemented answer.py and verified the selected behavior.\n' + '\n'.join(payload['verified_evidence'])
-                          if payload['verified_evidence'] else 'Hello. How can I help?')
+                output = ('I read answer.py from the open project.\n' if 'ptoject' in payload.get('objective', '') else 'Implemented answer.py and verified the selected behavior.\n') + '\n'.join(payload['verified_evidence']) if payload['verified_evidence'] else 'Hello. How can I help?'
             elif 'Answer strictly with JSON in one of these shapes' in text:
                 output = json.dumps({'kind': 'code_change', 'files': ['answer.py'], 'tests': ['test_answer.py'],
                                      'summary': 'Return the requested value'})
@@ -227,6 +235,64 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         assert entries and all(entry.memory_class != 'raw' for entry in entries)
         coding.get_by_role('button', name='Run Python tests', exact=True).click()
         expect(coding.locator('#terminal')).to_contain_text('1 passed', timeout=30000)
+        # Reproduce the user's project-read request through the actual loop.
+        chat.locator('#btn-new-chat').click()
+        chat.locator('#input').fill('Can you read my ptoject files?')
+        chat.locator('#send').click()
+        expect(chat.locator('#chat-thread')).to_contain_text('I read answer.py from the open project.', timeout=30000)
+        expect(chat.locator('#send')).to_be_enabled()
+        assert (stack['project'] / 'answer.py').read_text().endswith('return 42\n')
+
+        # Explicit deletion propagates to both windows and leaves source intact.
+        coding.locator('.coding-history-item').filter(has_text='Can you read my ptoject files?').click()
+        expect(coding.locator('#chat-thread')).to_contain_text('I read answer.py')
+        chat.get_by_role('button', name='Chat actions: Can you read my ptoject files?', exact=True).click()
+        chat.get_by_role('menuitem', name='Delete chat', exact=True).click()
+        expect(chat.locator('#chat-list')).not_to_contain_text('Can you read my ptoject files?')
+        expect(coding.locator('#coding-chat-history')).not_to_contain_text('Can you read my ptoject files?')
+        expect(coding.locator('#chat-thread')).not_to_contain_text('I read answer.py')
+        assert (stack['project'] / 'answer.py').exists()
+
+        # All four extra intake methods are connected, including a source outside the project.
+        chat.locator('#btn-intake').click()
+        chat.locator('[data-action="text"]').click()
+        lesson = 'Learning material. ' * 100 + 'END-OF-FULL-SOURCE'
+        chat.locator('#intake-source').fill(lesson)
+        chat.locator('#intake-source-name').fill('External lesson')
+        chat.locator('#intake-source-submit').click()
+        expect(chat.locator('#intake-store')).to_be_visible(timeout=15000)
+        chat.locator('#intake-store').click()
+        expect(chat.locator('#intake-body')).to_contain_text('Intake evaluation result', timeout=15000)
+        proposal_id = int(chat.locator('.intake-value').first.inner_text())
+        imported = stack['events']['minds'][0].memory_service.knowledge_proposal(proposal_id)
+        assert imported['content'] == lesson, 'must ingest full content, not its 500-character preview'
+        chat.locator('#intake-another').click()
+        chat.locator('[data-action="file"]').click()
+        chat.locator('#intake-upload').set_input_files({'name': 'outside-project.txt', 'mimeType': 'text/plain', 'buffer': b'External disk lesson'})
+        chat.locator('#intake-upload-submit').click()
+        expect(chat.locator('.intake-preview')).to_contain_text('External disk lesson', timeout=15000)
+        chat.locator('#intake-back-2').click()
+        chat.locator('[data-action="folder"]').click()
+        folder = stack['project'].parent / 'training-folder'
+        folder.mkdir()
+        (folder / 'lesson.md').write_text('Folder training lesson')
+        # Directory chooser plumbing is native/browser-specific. Supply its
+        # standard FileList result, then exercise the production reader and socket.
+        chat.locator('#intake-upload').evaluate("""input => {
+            const file = new File(['Folder training lesson'], 'lesson.md', {type:'text/markdown'});
+            Object.defineProperty(file, 'webkitRelativePath', {value:'training-folder/lesson.md'});
+            const files = new DataTransfer(); files.items.add(file); input.files = files.files;
+        }""")
+        chat.locator('#intake-upload-submit').click()
+        expect(chat.locator('.intake-preview')).to_contain_text('Folder training lesson', timeout=15000)
+        chat.locator('#intake-back-2').click()
+        chat.locator('[data-action="url"]').click()
+        chat.locator('#intake-source').fill(stack['url'] + '/window-chat.html')
+        chat.locator('#intake-source-submit').click()
+        expect(chat.locator('#intake-store')).to_be_visible(timeout=15000)
+        drafts = stack['events']['minds'][0]._intake_drafts.values()
+        assert any(draft['source_kind'] == 'url' and draft['source_path'].endswith('/window-chat.html') for draft in drafts)
+        chat.locator('#intake-cancel-2').click()
         screenshot = ROOT / 'test_results/ui-round-trip.png'
         screenshot.parent.mkdir(exist_ok=True)
         chat.screenshot(path=str(screenshot), full_page=True)

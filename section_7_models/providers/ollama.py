@@ -13,12 +13,13 @@ except ImportError:
 class OllamaProvider(ModelProvider):
     name = "ollama"
 
-    def __init__(self, api_url=None, model_name="", timeout=180):
+    def __init__(self, api_url=None, model_name="", timeout=180, generation=None):
         self.api_url = (api_url or os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
         if not self.api_url.startswith(("http://", "https://")):
             self.api_url = "http://" + self.api_url
         self.model_name = model_name
         self.timeout = timeout
+        self.generation = generation or {}
 
     def models(self):
         response = requests.get(self.api_url + "/api/tags", timeout=min(self.timeout, 5))
@@ -35,19 +36,28 @@ class OllamaProvider(ModelProvider):
         model = model_name or self.model_name
         if not model:
             raise ValueError("Ollama execution model is required")
+        payload = {"model": model, "messages": messages, "stream": False,
+                   "options": {"num_predict": self.generation.get("max_tokens", max_tokens)}}
+        if self.generation.get("context_tokens"):
+            payload["options"]["num_ctx"] = self.generation["context_tokens"]
+        if self.generation.get("structured_output") == "json":
+            payload["format"] = "json"
+        if isinstance(self.generation.get("think"), bool):
+            payload["think"] = self.generation["think"]
         response = requests.post(
             self.api_url + "/api/chat",
-            json={"model": model, "messages": messages, "stream": False,
-                  "options": {"num_predict": max_tokens}},
+            json=payload,
             timeout=self.timeout,
         )
         response.raise_for_status()
         data = response.json()
         if data.get("error"):
             raise RuntimeError(str(data["error"]))
+        if data.get("done_reason") == "length":
+            raise ValueError("output_token_limit_reached")
         content = (data.get("message") or {}).get("content")
         if not isinstance(content, str) or not content.strip():
-            raise RuntimeError("Ollama returned no answer")
+            raise ValueError("reasoning_without_answer" if (data.get("message") or {}).get("thinking") else "empty_model_answer")
         return content
 
     def generate(self, prompt, system=None, max_tokens=1024):

@@ -127,7 +127,7 @@ class CentralMind:
                 self._fulfill_domain_requirement,
             )
 
-        self.caller = Caller(self.inventory, self._load_organ, self.model_router, memory=self.memory)
+        self.caller = Caller(self.inventory, self._load_organ, self.model_router, memory=self.memory, on_status=self._log_tool)
         self.proposal_queue = ProposalQueue()
         self.router = Router(self.inventory)
         self.composer = Composer()
@@ -539,7 +539,10 @@ class CentralMind:
 
         raise RuntimeError(
             "no suitable subordinate resource produced "
-            "a semantic proposal"
+            "a semantic proposal. "
+            + ("; ".join(f"{row.get('model')}: {row.get('error')}" for row in result.get("attempts", [])[:12])
+               or "No eligible registered model matches this requirement; check Section 7 YAML.")
+            + " Check model service availability and registered execution identifiers."
         )
 
     def _log_tool(self, message: str) -> None:

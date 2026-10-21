@@ -139,7 +139,7 @@ class DeterministicToolEffectTests(unittest.TestCase):
             str(self.root / "a" / "b"),
         )
 
-    def test_intake_propose_declares_read_service_and_pending_write(self):
+    def test_intake_propose_declares_source_read_and_classification_without_disk_write(self):
         folder = self.root / "source"
         folder.mkdir()
         (folder / "a.txt").write_text(
@@ -154,15 +154,10 @@ class DeterministicToolEffectTests(unittest.TestCase):
 
         self.assertEqual(
             [e.action for e in effects],
-            ["read", "service", "create"],
+            ["service", "read"],
         )
-        self.assertEqual(effects[0].scope, "tree")
-        self.assertEqual(effects[1].target, "model:chat")
-        self.assertTrue(
-            effects[2].target.endswith(
-                ".central_mind/intake_pending.json"
-            )
-        )
+        self.assertEqual(effects[1].scope, "tree")
+        self.assertEqual(effects[0].target, "model:classification")
 
     def test_intake_commit_declares_memory_effect(self):
         effects = self.tool(IntakeCommit).effects({

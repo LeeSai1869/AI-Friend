@@ -1,3 +1,4 @@
+import { renderChatRows } from "../../shared/chat_history/chat_history.js";
 import {
   send,
   sendRaw,
@@ -51,6 +52,7 @@ import {
 
 import {
   selectProject,
+  getProject,
 } from "../project/project.js";
 
 const intent = createChatIntent();
@@ -84,6 +86,7 @@ const chatInput = createCodingInput({
         chat_id: conversation.getChatId(),
         context: {
           surface: "coding",
+          project: getProject(),
           active_file: editor.getActivePath(),
           open_files: editor.getOpenFiles(),
         },
@@ -102,27 +105,7 @@ function renderChatHistory(chats) {
   const list = document.getElementById("coding-chat-history");
   if (!list) return;
 
-  list.innerHTML = "";
-
-  for (const chat of chats || []) {
-    const button = document.createElement("button");
-    button.className = "coding-history-item";
-    button.textContent = chat.topic || "(untitled)";
-
-    if (conversation.getChatId() === chat.chat_id) {
-      button.classList.add("active");
-    }
-
-    button.addEventListener("click", () => {
-      if (chatInput.isBusy()) return;
-      sendRaw({
-        op: "load_chat",
-        chat_id: chat.chat_id,
-      });
-    });
-
-    list.appendChild(button);
-  }
+  renderChatRows({ list, chats, conversation, isBusy: () => chatInput.isBusy(), itemClass: "coding-history-item" });
 }
 
 document
@@ -141,6 +124,20 @@ onAuthStateChange((state) => {
 });
 
 onMessage((msg) => {
+  if (msg.op === "chats_changed") {
+    requestChats();
+    return;
+  }
+  if (msg.op === "chat_deleted") {
+    if (msg.ok && conversation.getChatId() === msg.chat_id) {
+      conversation.newChat();
+      topBar.setTopic("New chat", "coding");
+    } else if (!msg.ok) {
+      conversation.appendMessage("system", msg.error || "Could not delete chat.");
+    }
+    requestChats();
+    return;
+  }
   if (msg.op === "artifacts_changed") {
     explorer.load(explorer.getCurrentPath());
     const path = editor.getActivePath();

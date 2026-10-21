@@ -110,7 +110,8 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 assert 'syntax check succeeded' in result['text'], result
                 assert (app_root / 'answer.py').read_text() == 'def answer():\n    return 42\n'
                 assert result['chat_id']
-                history = app_root / '.central_mind/chats' / result['chat_id'] / 'turns.json'
+                from section_4_chatbox.state import ChatStore
+                history = ChatStore(app_root, owner='test_trainer').root / result['chat_id'] / 'turns.json'
                 assert 'syntax check succeeded' in history.read_text()
                 # Shared model routing is used by both semantic reasoning and Coding.
                 assert any('PROPOSE a semantic' in prompt for prompt in prompts)

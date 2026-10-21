@@ -25,6 +25,9 @@ from __future__ import annotations
 import json
 import time
 import uuid
+import hashlib
+import re
+import shutil
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -453,14 +456,33 @@ class Chat:
 class ChatStore:
     """Manage durable Chat State.
 
-    The existing .central_mind/chats storage path is intentionally
-    preserved for compatibility. Storage location does not determine
-    architectural ownership; Section 4 owns this state.
+    Authenticated application histories are scoped to an owner. The legacy
+    unowned location remains readable through explicit legacy stores only;
+    it is never silently assigned to an authenticated account.
     """
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, owner: Optional[str] = None):
         self.root = Path(workspace) / ".central_mind" / "chats"
+        if owner is not None:
+            identity = hashlib.sha256(owner.casefold().encode("utf-8")).hexdigest()
+            self.root = Path(workspace) / ".central_mind" / "users" / identity / "chats"
         self.root.mkdir(parents=True, exist_ok=True)
+
+    def _chat_path(self, chat_id: str) -> Path:
+        if not isinstance(chat_id, str) or not re.fullmatch(r"chat_[A-Za-z0-9_-]+", chat_id):
+            raise ValueError("invalid chat identity")
+        path = self.root / chat_id
+        if path.is_symlink() or path.resolve().parent != self.root.resolve():
+            raise ValueError("invalid chat path")
+        return path
+
+    def delete(self, chat_id: str) -> bool:
+        """Explicit human operation, scoped to this authenticated owner's store."""
+        path = self._chat_path(chat_id)
+        if not path.is_dir():
+            return False
+        shutil.rmtree(path)
+        return True
 
     def create(
         self,
@@ -481,7 +503,10 @@ class ChatStore:
         )
 
     def load(self, chat_id: str) -> Optional[Chat]:
-        path = self.root / chat_id
+        try:
+            path = self._chat_path(chat_id)
+        except ValueError:
+            return None
         if not path.exists():
             return None
 
@@ -495,7 +520,7 @@ class ChatStore:
 
     def list_ids(self) -> List[str]:
         return sorted(
-            [p.name for p in self.root.iterdir() if p.is_dir()]
+            [p.name for p in self.root.iterdir() if p.is_dir() and not p.is_symlink() and re.fullmatch(r"chat_[A-Za-z0-9_-]+", p.name)]
         )
 
     def latest(self) -> Optional[Chat]:

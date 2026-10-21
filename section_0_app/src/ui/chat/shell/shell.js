@@ -39,6 +39,7 @@ const leftPanel = createChatLeftPanel({
   conversation,
   topBar,
   onOpenIntake: openIntake,
+  isBusy: () => Boolean(pendingTurn),
 });
 
 let pendingTurn = null;
