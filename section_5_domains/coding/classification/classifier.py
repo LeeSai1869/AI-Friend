@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
-import re
+from ..cognition import request_model, parse_object
+
 from typing import Any, Dict
 
 
@@ -17,6 +17,8 @@ class CodingClassifier:
         recalled_block: str = "",
     ) -> Dict[str, Any]:
         top = broker.call("list_files", {"path": ""})
+        if not top.get("ok"):
+            return {"kind": "error", "error": top.get("error") or "project listing failed"}
         top_entries = (top.get("data") or {}).get("entries", [])
         top_list = "\n".join(
             f"  {entry['path']}" for entry in top_entries
@@ -27,6 +29,8 @@ class CodingClassifier:
             f"Project root contains:\n{top_list}\n\n"
             f"{recalled_block}\n\n"
             "Answer strictly with JSON in one of these shapes:\n\n"
+            '  {"kind": "plan", "summary": "plan only; no writes"}\n\n'
+            '  {"kind": "test", "tests": ["test_module.py"]}\n\n'
             '  {"kind": "inspect", '
             '"summary": "what must be investigated"}\n\n'
             '  {"kind": "code_change", '
@@ -40,6 +44,8 @@ class CodingClassifier:
             "- Use inspect when the user asks to inspect, analyze, "
             "locate, identify, explain, review, or determine which "
             "project files are relevant without applying a code change.\n"
+            "- Use plan for an implementation plan without applying changes, and test for running existing tests.\n"
+            "- A code_change may declare existing Python unittest modules in a tests list. Never weaken tests to make code pass.\n"
             "- If the user explicitly says not to modify anything yet, "
             "use inspect.\n"
             "- Missing file paths are NOT by themselves a reason to "
@@ -55,8 +61,8 @@ class CodingClassifier:
         )
 
         try:
-            reply = caller.call(
-                "coder_model",
+            reply = request_model(caller,
+                capability="plan",
                 messages=[{"role": "user", "content": prompt}],
             )
         except Exception as exc:
@@ -66,15 +72,13 @@ class CodingClassifier:
             }
 
         try:
-            value = json.loads(reply)
-            return value if isinstance(value, dict) else {}
-        except Exception:
-            match = re.search(r"\{.*\}", str(reply), re.DOTALL)
-            if match:
-                try:
-                    value = json.loads(match.group(0))
-                    return value if isinstance(value, dict) else {}
-                except Exception:
-                    pass
-
-        return {}
+            value = parse_object(reply)
+            if value.get("kind") not in {"inspect", "plan", "test", "code_change", "clarify", "other"}:
+                raise ValueError("unknown Coding operation")
+            if value.get("kind") == "clarify":
+                questions = value.get("questions")
+                if not isinstance(questions, list) or not questions or any(not isinstance(q, str) or not q.strip() for q in questions):
+                    raise ValueError("clarification requires nonempty questions")
+            return value
+        except (ValueError, TypeError):
+            return {"kind": "error", "error": "model returned an invalid Coding classification"}

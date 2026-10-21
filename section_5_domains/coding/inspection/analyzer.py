@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..cognition import request_model
+
 from typing import Dict
 
 
@@ -59,8 +61,8 @@ class InspectionAnalyzer:
         )
 
         return str(
-            caller.call(
-                "coder_model",
+            request_model(caller,
+                capability="plan",
                 messages=[
                     {
                         "role": "user",

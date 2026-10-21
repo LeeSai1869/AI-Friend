@@ -17,6 +17,13 @@ from .project_context import CodingProjectContext
 from .classification import CodingClassifier
 from .inspection import CodingInspector
 from .recall import CodingRecaller
+from .cognition import resource_question
+from .experience import CodingExperience
+from .execution import CodingExecution
+from .operations import CodingOperations, selected_capability, python_tests
+from .tester import Tester
+from .verifier import Verifier as CodingVerifier
+from weakref import WeakKeyDictionary
 
 
 def _assess_coding_result(applied, test_result, syntax_check_required=False):
@@ -79,61 +86,34 @@ class CodingOrgan(Organ):
         "compile", "implement", "fix", "add", "endpoint", "route", "server",
     ]
 
-    def __init__(self):
+    def __init__(self, *, session_scoped=True):
+        self._session_scoped = session_scoped
+        self._sessions = WeakKeyDictionary()
         self.root = Path.cwd()
         self.project_context = CodingProjectContext()
         self.classifier = CodingClassifier()
         self.inspector = CodingInspector()
         self.recaller = CodingRecaller()
+        self.execution = CodingExecution()
+        self.operations = CodingOperations()
+        self.experience = CodingExperience()
+
+    def _for_caller(self, caller):
+        if self._session_scoped or caller is None:
+            return self
+        if caller not in self._sessions:
+            domain = CodingOrgan()
+            # Knowledge evaluation receives proposals through the generic
+            # evaluator contract, not through an individual caller session.
+            domain.experience = self.experience
+            self._sessions[caller] = domain
+        return self._sessions[caller]
+
+    def evaluate_knowledge(self, proposal):
+        return self.experience.evaluate(proposal)
 
     def verify(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        """Verify CodingOrgan success claims using explicit execution evidence."""
-        if not isinstance(response, dict):
-            return {"ok": False, "reason": "coding response is not a dictionary"}
-
-        # Errors and clarification requests are not claims of successful coding.
-        if response.get("status") != "ok":
-            return {"ok": True, "reason": "response does not claim coding success"}
-
-        operation = response.get("operation")
-        artifacts = response.get("artifacts")
-
-        if operation == "no_change":
-            if artifacts == []:
-                return {"ok": True, "reason": "no-change response confirms no files were written"}
-            return {"ok": False, "reason": "no-change response must have an empty artifact list"}
-
-        if operation != "code_change":
-            return {"ok": False, "reason": "successful response lacks a recognized operation"}
-
-        if (
-            not isinstance(artifacts, list)
-            or not artifacts
-            or any(not isinstance(path, str) or not path.strip() for path in artifacts)
-        ):
-            return {"ok": False, "reason": "successful code change lacks valid artifact paths"}
-
-        evidence = response.get("verification")
-        if not isinstance(evidence, dict) or evidence.get("ok") is not True:
-            return {"ok": False, "reason": "successful code change lacks passing verification evidence"}
-
-        if not isinstance(evidence.get("reason"), str) or not evidence["reason"].strip():
-            return {"ok": False, "reason": "verification evidence lacks a reason"}
-
-        checks = evidence.get("checks")
-        if not isinstance(checks, dict) or checks.get("file_writes") is not True:
-            return {"ok": False, "reason": "file-write verification did not pass"}
-
-        has_python = any(path.lower().endswith(".py") for path in artifacts)
-        expected_syntax = "passed" if has_python else "not_applicable"
-
-        if checks.get("python_syntax") != expected_syntax:
-            return {
-                "ok": False,
-                "reason": f"Python syntax evidence must be {expected_syntax}",
-            }
-
-        return {"ok": True, "reason": "coding evidence passed validation"}
+        return CodingVerifier().verify(response)
 
     def can_handle(self, request: Dict[str, Any]) -> bool:
         text = (request.get("text") or "").lower()
@@ -167,6 +147,9 @@ class CodingOrgan(Organ):
         request: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Return bounded Coding-owned evidence without executing the task."""
+        domain = self._for_caller(request.get("caller"))
+        if domain is not self:
+            return domain.handle_consultation(request)
 
         consultation = request.get("consultation") or {}
         if not isinstance(consultation, dict):
@@ -231,6 +214,9 @@ class CodingOrgan(Organ):
         Operation names and project semantics are private to Coding.
         Central Mind supplies only trusted shared resources.
         """
+        domain = self._for_caller(request.get("caller"))
+        if domain is not self:
+            return domain.handle_application(request)
         operation = str(request.get("operation") or "").strip()
         payload = request.get("payload") or {}
 
@@ -273,6 +259,19 @@ class CodingOrgan(Organ):
                 "status": "ok",
                 "result": result,
             }
+
+        if operation == "run_tests":
+            self.project_context.require_open()
+            broker = request.get("broker")
+            if broker is None:
+                return {"status": "error", "error": "Coding application requires broker"}
+            response = self.operations.test(
+                broker=self.project_broker(broker),
+                inventory=self.project_context.tree.files(),
+            )
+            # The application request was handled; the nested status retains
+            # test failure or missing-resource outcomes without hiding output.
+            return {"status": "ok", "result": response}
 
         if operation == "list_files":
             path = str(payload.get("path") or "")
@@ -340,7 +339,14 @@ class CodingOrgan(Organ):
         }
 
     def handle(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        domain = self._for_caller(request.get("caller"))
+        if domain is not self:
+            return domain.handle(request)
         task = (request.get("text") or "").strip()
+        answers = request.get("answers")
+        if isinstance(answers, dict) and any(value for value in answers.values()):
+            import json
+            task += "\nUser clarifications: " + json.dumps(answers, ensure_ascii=False, default=str)
         broker = request.get("broker")
 
         if (
@@ -359,6 +365,18 @@ class CodingOrgan(Organ):
             memory_bridge=request.get("memory"),
         )
 
+        capability = selected_capability(request.get("cognitive_plan"))
+        if capability in {"plan_code", "test_code", "verify_code"}:
+            if not self.project_context.is_open:
+                return resource_question("open a Coding Project before planning or running tests")
+            try:
+                if capability == "plan_code":
+                    return self.operations.plan(task=task, caller=caller, broker=broker,
+                        context=self.project_context, inspector=self.inspector, recalled=recalled_block)
+                return self.operations.test(broker=broker, inventory=self.project_context.tree.files())
+            except Exception as exc:
+                return resource_question(str(exc))
+
         # Decide which Coding responsibility owns this request.
         classified = self.classifier.classify(
             task=task,
@@ -367,16 +385,19 @@ class CodingOrgan(Organ):
             recalled_block=recalled_block,
         )
 
-        kind = classified.get("kind", "")
+        kind = "inspect" if capability == "inspect_code" else classified.get("kind", "")
 
         if kind == "error":
-            return {
-                "status": "error",
-                "error": classified.get(
-                    "error",
-                    "coding classification failed",
-                ),
-            }
+            return resource_question(classified.get("error") or "coding classification failed")
+
+        if kind in {"plan", "test"}:
+            if not self.project_context.is_open:
+                return resource_question("open a Coding Project before planning or running tests")
+            if kind == "plan":
+                return self.operations.plan(task=task, caller=caller, broker=broker,
+                    context=self.project_context, inspector=self.inspector, recalled=recalled_block)
+            return self.operations.test(broker=broker, inventory=self.project_context.tree.files(),
+                                        paths=classified.get("tests"))
 
         if kind == "inspect":
             if not self.project_context.is_open:
@@ -417,7 +438,10 @@ class CodingOrgan(Organ):
                           "\n  - ".join(str(q) for q in questions),
             }
 
-        if kind == "other" or kind == "":
+        if kind not in {"other", "code_change", "inspect", "clarify"}:
+            return resource_question("model did not identify a valid Coding responsibility")
+
+        if kind == "other":
             return {
                 "status": "ok",
                 "operation": "no_change",
@@ -430,7 +454,12 @@ class CodingOrgan(Organ):
             }
 
         # kind == "code_change"
-        files_to_change: List[str] = list(classified.get("files") or [])
+        files_to_change = classified.get("files")
+        if not isinstance(files_to_change, list) or any(not isinstance(f, str) or not f.strip() for f in files_to_change):
+            return resource_question("a valid list of target files is required")
+        files_to_change = list(dict.fromkeys(files_to_change))
+        if len(files_to_change) > 10:
+            return resource_question("the change exceeds the ten-file operation budget; split the task")
         summary: str = classified.get("summary", "")
 
         if not files_to_change:
@@ -454,10 +483,14 @@ class CodingOrgan(Organ):
             r = broker.call("read_file", {"path": f})
             if r.get("ok"):
                 contents[f] = r["data"]["content"]
-            else:
-                # If the file does not exist but the user named it, treat it
-                # as a new file to create.
+            elif str(r.get("error", "")).startswith("not found:"):
+                # A missing file is distinct from denied or unreadable content.
+                # New paths must have been named explicitly by the user.
+                if f not in task:
+                    return resource_question("confirm the proposed new file path " + f)
                 new_files.append(f)
+            else:
+                return {"status": "error", "error": r.get("error") or "file read failed", "artifacts": []}
 
         if not contents and not new_files:
             return {
@@ -478,113 +511,39 @@ class CodingOrgan(Organ):
         # 5. Ask for the change, only for those files.
         # ------------------------------------------------------------------
         files_block = "\n".join(
-            f"--- {k} ---\n{v[:4000]}" for k, v in contents.items()
+            f"--- {k} ---\n{v}" for k, v in contents.items()
         )
+        if len(files_block) > 48000:
+            return resource_question("the selected files exceed the full-file context budget; narrow the change")
         new_files_block = "\n".join(f"--- NEW: {k} ---" for k in new_files)
         change_prompt = (
             f"Task: {task}\n\n"
             f"Change summary: {summary}\n\n"
             f"{recalled_block}\n\n"
-            f"Existing files:\n{files_block}\n\n"
+            f"Existing files:\n{files_block}\n\nNew files:\n{new_files_block}\n\n"
             "Write the change. Reply with a JSON object:\n"
             '{"writes": [{"path": "file.py", "content": "full new content"}]}\n'
             f"You may ONLY write these files: {allowed_files}\n"
             "Do NOT invent any other path."
         )
-        try:
-            change_reply = caller.call(
-                "coder_model",
-                messages=[{"role": "user", "content": change_prompt}],
-            )
-        except Exception as e:
-            return {"status": "error", "error": f"change call failed: {e}"}
-
-        writes: List[Dict[str, str]] = []
-        try:
-            obj = _json.loads(change_reply)
-            if isinstance(obj, dict) and isinstance(obj.get("writes"), list):
-                writes = obj["writes"]
-        except Exception:
-            m = _re.search(r"\{.*\}", change_reply, _re.DOTALL)
-            if m:
-                try:
-                    obj = _json.loads(m.group(0))
-                    if isinstance(obj, dict) and isinstance(obj.get("writes"), list):
-                        writes = obj["writes"]
-                except Exception:
-                    pass
-
-        # Reject any write to a file we did not name.
-        allowed = set(allowed_files)
-        writes = [w for w in writes if w.get("path") in allowed]
-
-        if not writes:
-            return {
-                "status": "needs_answers",
-                "questions": [{"attribute": "target_file", "options": [], "default": ""}],
-                "output": (
-                    "The model did not produce a change confined to the named files.\n"
-                    f"Named: {list(allowed)}"
-                ),
-            }
-
-        # ------------------------------------------------------------------
-        # 6. Apply.
-        # ------------------------------------------------------------------
-        applied = []
-        for w in writes:
-            r = broker.call("write_file", {"path": w["path"], "content": w.get("content", "")})
-            applied.append({"path": w["path"], "ok": r.get("ok"), "error": r.get("error")})
-
-        # ------------------------------------------------------------------
-        # 7. Test (only the files we wrote).
-        # ------------------------------------------------------------------
-        test_result = None
-        py_paths = [w["path"] for w in writes if w["path"].endswith(".py")]
-        if py_paths:
-            test_result = broker.call("run_python_compile", {
-                "paths": py_paths,
-            })
-
-        # 7b. Submit coding results for Central Mind review; do not write memory directly.
-        memory_bridge = request.get("memory")
-        if memory_bridge is not None and applied:
-            try:
-                assessment = _assess_coding_result(
-                    applied, test_result, syntax_check_required=bool(py_paths)
-                )
-                files_changed = ", ".join(a["path"] for a in applied)
-                memory_bridge.propose_knowledge(
-                    domain="Cod",
-                    title=f"{summary or task[:80]}",
-                    content=(
-                        f"Changed: {files_changed}\n"
-                        f"Task: {task}\n"
-                        f"Summary: {summary}\n"
-                        f"Verification: {assessment['reason']}"
-                    ),
-                    originator=[{"type": "mind", "name": "central"}],
-                    tags=["coding", "solution"],
-                    kind="observation",
-                    requested_class="raw",
-                    source_refs=[a["path"] for a in applied],
-                    source={
-                        "source_type": "coding_run",
-                        "changed_files": [a["path"] for a in applied],
-                    },
-                    evidence={
-                        "assessment": assessment,
-                        "syntax_check_required": bool(py_paths),
-                        "syntax_check_result": str(test_result),
-                        "functional_correctness_established": False,
-                    },
-                    derivation_note=(
-                        "Coding result submitted for Central Mind review. "
-                        "A successful syntax check alone does not establish functional correctness."
-                    ),
-                )
-            except Exception as e:
-                print(f"[coding] memory proposal failed: {e}")
+        inventory = self.project_context.tree.files() if self.project_context.is_open else list(contents)
+        tests = classified.get("tests") or []
+        if not isinstance(tests, list) or any(not isinstance(path, str) for path in tests):
+            return resource_question("test targets must be a list of Python module paths")
+        if any(path not in inventory and path not in allowed_files for path in tests):
+            return resource_question("functional tests must be existing files or explicitly planned artifacts")
+        # A model may suggest extra targets, but cannot opt out of the
+        # project's existing regression tests by returning an empty list.
+        tests = list(dict.fromkeys([*python_tests(inventory), *tests]))
+        execution = self.execution.run(caller=caller, broker=broker, prompt=change_prompt,
+            allowed_files=allowed_files, tests=tests,
+            sources=inventory)
+        if execution.get("status") != "executed":
+            return execution
+        writes, attempts = execution["writes"], execution["attempts"]
+        applied, test_result = execution["applied"], execution["syntax"]
+        functional_result = execution["functional_tests"]
+        py_paths = [write["path"] for write in writes if write["path"].lower().endswith(".py")]
 
         # ------------------------------------------------------------------
         # 8. Summary.
@@ -599,7 +558,9 @@ class CodingOrgan(Organ):
 
         if test_result is not None:
             lines.append("")
-            lines.append(f"Test: {'PASSED' if test_result.get('ok') else 'FAILED'}")
+            lines.append(f"Python syntax check: {'PASSED' if test_result.get('ok') else 'FAILED'}")
+            if functional_result is None:
+                lines.append("Functional tests have not been run: no test modules were selected.")
             out = (test_result.get("data") or {}).get("stdout", "")
             err = (test_result.get("data") or {}).get("stderr", "")
             if out:
@@ -609,6 +570,14 @@ class CodingOrgan(Organ):
 
         assessment = _assess_coding_result(applied, test_result, syntax_check_required=bool(py_paths))
         lines.append("")
+        if functional_result is not None:
+            data = functional_result.get("data") or {}
+            if not Tester.passed(functional_result):
+                assessment = {"ok": False, "reason": "persisted functional tests failed"}
+            elif assessment["ok"]:
+                assessment["reason"] += "; functional tests passed"
+            lines.append(f"Functional tests: {data.get('tests_run', 0)} run, {data.get('passed', 0)} passed")
+            lines.append(str(data.get("output", "")))
         lines.append(f"Verification: {assessment['reason']}")
 
         syntax_state = "not_applicable"
@@ -633,10 +602,13 @@ class CodingOrgan(Organ):
             )
         )
 
-        return {
+        result = {
             "status": "ok" if assessment["ok"] else "error",
             "operation": "code_change",
-            "output": "\\n".join(lines),
+            "output": "\n".join(lines),
+            "attempts": attempts,
+            "functional_tests": functional_result,
+            "provider": (getattr(caller, "last_source", None) or {}).get("name"),
             "artifacts": [a["path"] for a in applied],
             "verification": {
                 "ok": assessment["ok"],
@@ -646,8 +618,24 @@ class CodingOrgan(Organ):
                     "python_syntax": syntax_state,
                 },
             },
+            "learning_candidate": {
+                "domain": "Cod", "kind": "observation",
+                "title": summary or task[:80],
+                "content": (
+                    f"Task: {task}\nFiles: {', '.join(a['path'] for a in applied)}\n"
+                    f"Outcome: {assessment['reason']}\n"
+                    f"Functional checks: {functional_result.get('data') if functional_result else 'not run; functional correctness is unverified'}\n"
+                    f"Candidate attempts: {attempts}"
+                ),
+                "tags": ["coding", "bounded_execution", "functional_tests" if functional_result else "syntax_only"],
+                "source_refs": [a["path"] for a in applied],
+                "source": dict(getattr(caller, "last_source", None) or {}),
+                "derivation_note": "Observed Coding execution; preserve failures and the limited verification scope.",
+            },
             **({} if assessment["ok"] else {"error": assessment["reason"]}),
         }
+        self.experience.remember(result["learning_candidate"], assessment, functional_result)
+        return result
 
 
-ORGAN = CodingOrgan()
+ORGAN = CodingOrgan(session_scoped=False)

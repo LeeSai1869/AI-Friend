@@ -79,7 +79,7 @@ def build_resource_provider(
             from providers.ollama import OllamaProvider
 
         return OllamaProvider(
-            api_url=resource.get("api_url") or "http://localhost:11434",
+            api_url=resource.get("api_url"),
             model_name=execution_model_for(resource),
             timeout=resource.get("timeout", timeout),
         )
@@ -151,7 +151,7 @@ def build_resource_provider(
 
 def build_provider(config: dict) -> ModelProvider:
     """Compatibility factory for the older application config contract."""
-    provider = (config.get("model_provider") or "echo").lower()
+    provider = (config.get("model_provider") or "ollama").lower()
 
     if provider == "ollama":
         try:
@@ -161,7 +161,7 @@ def build_provider(config: dict) -> ModelProvider:
 
         return OllamaProvider(
             api_url=config.get("model_api_url") or "http://localhost:11434",
-            model_name=config.get("model_name") or "qwen2.5-coder",
+            model_name=config.get("model_name") or "",
             timeout=config.get("model_timeout", 120),
         )
 
@@ -178,9 +178,4 @@ def build_provider(config: dict) -> ModelProvider:
             timeout=config.get("model_timeout", 60),
         )
 
-    try:
-        from .providers.echo import EchoProvider
-    except (ImportError, ValueError):
-        from providers.echo import EchoProvider
-
-    return EchoProvider()
+    raise ValueError(f"unsupported model provider: {provider}")

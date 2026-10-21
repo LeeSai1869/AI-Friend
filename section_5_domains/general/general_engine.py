@@ -21,16 +21,16 @@ class GeneralOrgan(Organ):
         caller = request.get("caller")
 
         if caller is None:
-            return {"status": "ok", "output": f"[general] {text}"}
+            return {"status": "error", "error": "shared model caller is unavailable"}
 
         try:
-            reply = caller.call(
-                "chat",
+            reply = caller.route(
+                domain="chat", capability="answer",
                 messages=[{"role": "user", "content": text}],
             )
             return {"status": "ok", "output": reply}
         except Exception as e:
-            return {"status": "ok", "output": f"[general] {text} (error: {e})"}
+            return {"status": "error", "error": "No conversational model is available; check the configured model service."}
 
 
 ORGAN = GeneralOrgan()

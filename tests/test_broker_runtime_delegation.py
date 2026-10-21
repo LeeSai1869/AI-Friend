@@ -108,6 +108,8 @@ def make_mind(organs):
         ask=lambda questions: {},
     )
 
+    from runtime_contract import configure_execution_contract
+    configure_execution_contract(mind, infos)
     return mind, infos
 
 

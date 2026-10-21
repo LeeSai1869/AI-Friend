@@ -35,12 +35,14 @@ class CodingRecaller:
                         f"  [{item['state']}] {item['title']} "
                         f"(score={item['score']:.2f}, "
                         f"success={item['success_count']}, "
-                        f"fail={item['failure_count']})"
+                        f"fail={item['failure_count']})\n"
+                        f"    Source memory: {item.get('id', 'unknown')}\n"
+                        f"    Evidence: {str(item.get('content', ''))[:1500]}"
                     )
 
             if failures:
                 lines.append(
-                    "Previously rejected approaches (do not repeat):"
+                    "Previously rejected approaches (reassess conditions before retrying):"
                 )
                 for item in failures:
                     lines.append(

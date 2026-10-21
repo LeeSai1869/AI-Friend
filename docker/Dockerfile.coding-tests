@@ -1,0 +1,10 @@
+# Supply a reviewed Python base image by immutable digest at build time.
+ARG PYTHON_BASE
+FROM ${PYTHON_BASE}
+COPY wheels /opt/test-wheels
+COPY requirements-tests.lock /opt/requirements-tests.lock
+RUN python -m pip install --no-cache-dir --no-index --find-links=/opt/test-wheels \
+    --require-hashes -r /opt/requirements-tests.lock
+# No project source, credentials, or host directories are copied into the image.
+USER 65534:65534
+WORKDIR /work

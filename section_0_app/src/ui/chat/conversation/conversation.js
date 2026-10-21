@@ -56,6 +56,12 @@ export function createConversation() {
     msg.appendChild(roleEl);
     msg.appendChild(body);
 
+    if (role !== "user" && Array.isArray(metadata?.artifacts) && metadata.artifacts.length) {
+      const artifacts = document.createElement("div");
+      artifacts.className = "msg-artifacts";
+      artifacts.textContent = "Files: " + metadata.artifacts.join(", ");
+      msg.appendChild(artifacts);
+    }
     if (role !== "user" && metadata) {
       const footer = resourceFooter(metadata);
 

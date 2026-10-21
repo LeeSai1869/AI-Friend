@@ -267,7 +267,7 @@ def _eligible(
         except (TypeError, ValueError):
             declared = 0
 
-        if declared and declared < required_context:
+        if declared < required_context:
             return False, [
                 "context window below requirement"
             ]
@@ -334,7 +334,6 @@ def rank_resources(
 
         if (
             requirement.minimum_quality
-            and quality
             and quality
             < requirement.minimum_quality
         ):

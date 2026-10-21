@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..cognition import request_model
+
 import json
 import re
 from typing import List
@@ -50,8 +52,8 @@ class RelevantFileSelector:
             '"reason": "brief reason"}'
         )
 
-        reply = caller.call(
-            "coder_model",
+        reply = request_model(caller,
+            capability="plan",
             messages=[{"role": "user", "content": prompt}],
         )
 

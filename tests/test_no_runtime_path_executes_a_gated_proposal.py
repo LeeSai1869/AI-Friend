@@ -140,14 +140,14 @@ def test_queue_touching_functions_only_use_allowed_methods():
 
 def test_proposal_decide_handler_has_no_execution_calls():
     server = (ROOT / "server.py").read_text(encoding="utf-8")
-    start = server.find('if op == "proposal_decide"')
-    assert start != -1, "proposal_decide op missing"
-    rest = server[start:]
-    next_if = rest.find("\n            if op ==", 1)
-    next_comment = rest.find("\n            # ----", 1)
-    candidates = [x for x in (next_if, next_comment) if x != -1]
-    end = min(candidates) if candidates else len(rest)
-    block = rest[:end]
+    tree = ast.parse(server)
+    handlers = [node for node in ast.walk(tree) if isinstance(node, ast.If)
+                and isinstance(node.test, ast.Compare)
+                and isinstance(node.test.left, ast.Name) and node.test.left.id == "op"
+                and any(isinstance(value, ast.Constant) and value.value == "proposal_decide"
+                        for value in node.test.comparators)]
+    assert len(handlers) == 1, "proposal_decide handler missing or duplicated"
+    block = ast.get_source_segment(server, handlers[0])
     for forbidden in (
         "bind_central_mind()", "bind_component(",
         "resource_socket.request", "organ.handle(",

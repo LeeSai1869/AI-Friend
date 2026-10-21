@@ -4,8 +4,8 @@ Security contract:
 - ``run_command`` is the legacy general process runner. Production Guard
   deliberately grants ``process.execute`` to nobody.
 - ``run_python_compile`` is a constrained Coding V1 execution profile.
-  Callers supply only workspace-relative Python paths. The executable and
-  arguments are constructed here by trusted tool code.
+  Callers supply only workspace-relative Python paths. Source is compiled
+  in-process without imports, execution, or bytecode writes.
 """
 from __future__ import annotations
 
@@ -186,49 +186,28 @@ class RunPythonCompile(Tool):
         # and before executable tool control.
         self._validated_paths(args)
 
-        return (
-            ToolEffect(
-                action="execute",
-                target="code-test:python-py_compile",
-                scope="service",
-            ),
-        )
+        return tuple(
+            ToolEffect(action="read", target=str(self._resolve(path)), scope="exact")
+            for path in self._validated_paths(args)
+        ) + (ToolEffect(action="execute", target="code-test:python-compile", scope="service"),)
 
     def call(self, args: Dict[str, Any]) -> Dict[str, Any]:
         try:
             paths = self._validated_paths(args)
-        except ValueError as exc:
-            return {"ok": False, "data": None, "error": str(exc)}
-
-        try:
-            timeout = int(args.get("timeout") or 60)
-        except (TypeError, ValueError):
-            return {"ok": False, "data": None, "error": "timeout must be an integer"}
-
-        if timeout < 1 or timeout > 120:
-            return {
-                "ok": False,
-                "data": None,
-                "error": "timeout must be between 1 and 120 seconds",
-            }
-
-        command = ["python3", "-m", "py_compile", *paths]
-
-        try:
-            proc = subprocess.run(
-                command,
-                shell=False,
-                cwd=str(self.workspace_root),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except subprocess.TimeoutExpired:
-            return {"ok": False, "data": None, "error": f"timeout after {timeout}s"}
-        except Exception as exc:
-            return {"ok": False, "data": None, "error": str(exc)}
-
-        return _result(proc, command)
+            for path in paths:
+                target = self._resolve(path)
+                if target.stat().st_size > 1024 * 1024:
+                    raise ValueError("Python syntax check supports files up to 1 MiB")
+                # Compile without executing code, importing workspace modules,
+                # starting Python from an untrusted cwd, or writing bytecode.
+                compile(target.read_bytes(), str(target), "exec", dont_inherit=True)
+            return {"ok": True, "data": {"returncode": 0, "stdout": "", "stderr": "",
+                    "profile": "in_process_python_compile", "paths": paths}, "error": None}
+        except (SyntaxError, ValueError, OSError) as exc:
+            return {"ok": False, "data": {"returncode": 1, "stdout": "", "stderr": str(exc),
+                    "profile": "in_process_python_compile"}, "error": "Python syntax check failed"}
 
 
-TOOLS = [RunCommand, RunPythonCompile]
+from .python_tests import RunPythonTests
+
+TOOLS = [RunCommand, RunPythonCompile, RunPythonTests]

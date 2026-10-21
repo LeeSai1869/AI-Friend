@@ -68,7 +68,7 @@ class ProductionEffectPolicyTests(unittest.TestCase):
 
         self.assertTrue(decision.allowed)
 
-    def test_process_execution_is_not_enabled(self):
+    def test_execute_effect_is_structural_not_a_capability_grant(self):
         effect = ClassifiedEffect(
             action="execute",
             scope="service",
@@ -83,7 +83,21 @@ class ProductionEffectPolicyTests(unittest.TestCase):
             ),
         )
 
-        self.assertFalse(decision.allowed)
+        self.assertTrue(decision.allowed)
+        # The effect gate permits the shape; production capability policy
+        # must independently deny general process execution for every role.
+        from section_1_central_mind.guard.contract import GuardPrincipal, GuardRequest
+        from section_1_central_mind.guard.production_policy import build_production_guard_policy
+        for role in ("user", "trainer", "administrator"):
+            request = GuardRequest(
+                principal=GuardPrincipal(principal_id="test", kind="human", role=role,
+                                         authenticated=True, source="auth_service"),
+                component=GuardComponent(kind="tool", name="terminal"),
+                component_chain=self.chain(("central_mind", "central_mind"), ("tool", "terminal")),
+                operation="run_command", resource="tool", target="run_command",
+                required_capabilities=("process.execute",), effects=(effect,),
+            )
+            self.assertFalse(build_production_guard_policy().evaluate(request.principal, request.required_capabilities).allowed)
 
     def test_network_is_enabled(self):
         effect = ClassifiedEffect(

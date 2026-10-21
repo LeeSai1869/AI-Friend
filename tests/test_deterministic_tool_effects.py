@@ -384,11 +384,12 @@ class DeterministicToolEffectTests(unittest.TestCase):
             "https://example.com",
         )
 
-    def test_terminal_remains_fail_closed(self):
-        with self.assertRaises(NotImplementedError):
-            self.tool(RunCommand).effects({
-                "command": ["python3", "-V"],
-            })
+    def test_terminal_declares_execution_for_the_separate_guard_gate(self):
+        effects = self.tool(RunCommand).effects({"command": ["python3", "-V"]})
+        self.assertEqual(len(effects), 1)
+        self.assertEqual(effects[0].action, "execute")
+        self.assertEqual(effects[0].target, "process:python3")
+        self.assertEqual(effects[0].scope, "service")
 
 
 if __name__ == "__main__":

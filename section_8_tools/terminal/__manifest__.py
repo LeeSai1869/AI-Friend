@@ -5,6 +5,7 @@ ORGAN = {
     "capabilities": [
         "run_command",
         "run_python_compile",
+        "run_python_tests",
     ],
     "security": {
         "requires": {
@@ -14,6 +15,7 @@ ORGAN = {
             ],
 
             # Narrow Coding V1 execution authority.
+            "run_python_tests": ["code.test.execute"],
             "run_python_compile": [
                 "code.test.execute",
             ],

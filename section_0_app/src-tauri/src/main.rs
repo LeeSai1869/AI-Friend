@@ -119,9 +119,16 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
         ));
     }
 
+    let local_python = project_root.join(".venv").join("bin").join("python3");
+    let python = if local_python.is_file() {
+        local_python.to_string_lossy().to_string()
+    } else {
+        "python3".to_string()
+    };
+
     let command = app
         .shell()
-        .command("python3")
+        .command(python)
         .args([
             main_py.to_string_lossy().to_string(),
             "--serve".to_string(),
@@ -248,6 +255,17 @@ fn open_chat_window(app: tauri::AppHandle) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        // Register first: a second launch must focus the existing application
+        // before setup can spawn another Python backend.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let window = app.get_webview_window("chat")
+                .or_else(|| app.webview_windows().into_values().next());
+            if let Some(window) = window {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(BackendProcess(Mutex::new(None)))

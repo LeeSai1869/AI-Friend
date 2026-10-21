@@ -32,6 +32,7 @@ class CentralMind:
         self.chatbox = chatbox
         self.guards = guards
         self.principal = principal
+        self._domain_brokers = {}
 
         # Workspace root — where the mind reads and writes.
         # This is the parent of section_1_central_mind.
@@ -126,7 +127,7 @@ class CentralMind:
                 self._fulfill_domain_requirement,
             )
 
-        self.caller = Caller(self.inventory, self._load_organ, self.model_router)
+        self.caller = Caller(self.inventory, self._load_organ, self.model_router, memory=self.memory)
         self.proposal_queue = ProposalQueue()
         self.router = Router(self.inventory)
         self.composer = Composer()
@@ -218,9 +219,14 @@ class CentralMind:
                 "error": f"domain {component!r} could not be loaded",
             }
 
+        cache = self._domain_brokers
+        cached = cache.get(info.name)
+        if cached is None or cached[0] is not info:
+            cached = (info, self.broker.bind_component(info))
+            cache[info.name] = cached
         domain_request = {
             **dict(request or {}),
-            "broker": self.broker.bind_component(info),
+            "broker": cached[1],
             "caller": self.caller,
             "cognitive_plan": dict(cognitive_plan or {}),
         }
@@ -539,6 +545,10 @@ class CentralMind:
     def _log_tool(self, message: str) -> None:
         """Called by the broker for every tool event."""
         print(message)
+        status = getattr(getattr(self, "chatbox", None), "tool_status", None)
+        if callable(status) and message.startswith("[broker] ") and "(" in message:
+            operation = message.split("[broker] ", 1)[1].split("(", 1)[0]
+            status("Working: " + operation)
 
     # ---- public: process one turn ---------------------------------
 
@@ -635,20 +645,8 @@ class CentralMind:
                 },
             }
 
-        if (
-            len(steps) == 1
-            and steps[0].kind == "communicate"
-        ):
-            return {
-                "status": "communicate",
-                "communication": (
-                    steps[0].as_dict()
-                ),
-                "evidence": [],
-                "cognition": {
-                    "plan": plan.as_dict(),
-                },
-            }
+        if len(steps) == 1 and steps[0].kind == "communicate":
+            return self._communicate(plan, steps[0], [], [])
 
         from .cognition import CognitivePlan
 
@@ -754,6 +752,7 @@ class CentralMind:
                 self._execute_single_plan(
                     step_input,
                     plan=step_plan,
+                    context=context,
                 )
             )
 
@@ -790,16 +789,20 @@ class CentralMind:
                     )
 
             if result.get("status") != "ok":
-                result["cognition"] = {
+                # Do not embed result inside its own cognition (which creates
+                # circular JSON), or leak prior nominal output after rejection.
+                public = {key: value for key, value in result.items()
+                          if key not in {"cognition", "output", "outputs", "communication"}}
+                public["cognition"] = {
                     "plan": plan.as_dict(),
-                    "step_results": (
-                        step_results
-                    ),
-                    "appraisals": (
-                        all_appraisals
-                    ),
+                    "step_results": {
+                        key: {field: value for field, value in item.items()
+                              if field in {"status", "error", "errors", "artifacts"}}
+                        for key, item in step_results.items()
+                    },
+                    "appraisals": all_appraisals,
                 }
-                return result
+                return public
 
             if result.get("output") is not None:
                 verified_outputs.append(
@@ -813,23 +816,7 @@ class CentralMind:
         ]
 
         if communication_steps:
-            return {
-                "status": "communicate",
-                "communication": (
-                    communication_steps[-1]
-                    .as_dict()
-                ),
-                "evidence": verified_outputs,
-                "cognition": {
-                    "plan": plan.as_dict(),
-                    "step_results": (
-                        step_results
-                    ),
-                    "appraisals": (
-                        all_appraisals
-                    ),
-                },
-            }
+            return self._communicate(plan, communication_steps[-1], verified_outputs, all_appraisals, step_results)
 
         combined = self.composer.combine([
             {
@@ -842,10 +829,11 @@ class CentralMind:
         if combined.get("status") == "ok":
             return {
                 "status": "ok",
-                "output": combined.get(
-                    "output",
-                    "",
-                ),
+                "output": combined.get("output", ""),
+                "artifacts": [path for item in step_results.values() for path in item.get("artifacts", [])],
+                **{key: value for item in step_results.values() for key, value in item.items()
+                   if key in {"domain", "capability", "provider", "execution_model", "source_model"}},
+                "memory_ids": list(plan.memory_ids),
                 "cognition": {
                     "plan": plan.as_dict(),
                     "step_results": (
@@ -865,11 +853,42 @@ class CentralMind:
 
         return combined
 
+    def _communicate(self, plan, step, evidence, appraisals, step_results=None):
+        """Render Mind's communication intent using subordinate resources."""
+        import json
+        from .resource_socket import ResourceRequirement
+        requirement = ResourceRequirement(
+            kind="model", capability="answer",
+            traits=("instruction_following", "prose"), prefer_local=True,
+        )
+        result = self.resource_socket.request(requirement, messages=[
+            {"role": "system", "content": (
+                "Render Central Mind's final response to the human. Use the objective and verified evidence. "
+                "Do not invent actions, artifacts, test results, or certainty. If there is execution evidence, "
+                "preserve its limitations and failures. No tool execution or authority is granted by this request."
+            )},
+            {"role": "user", "content": json.dumps({
+                "objective": plan.objective, "communication_intent": step.as_dict(),
+                "verified_evidence": evidence,
+            }, ensure_ascii=False)},
+        ])
+        if not result.get("ok"):
+            return {"status": "error", "error": "A communication resource is unavailable.",
+                    "cognition": {"plan": plan.as_dict(), "appraisals": appraisals}}
+        results = list((step_results or {}).values())
+        return {"status": "ok", "output": result["output"], "source_model": result.get("model"),
+                "provider": result.get("provider"), "execution_model": result.get("execution_model"),
+                "domain": results[-1].get("domain") if results else None,
+                "capability": results[-1].get("capability") if results else "answer",
+                "artifacts": [path for item in results for path in item.get("artifacts", [])],
+                "cognition": {"plan": plan.as_dict(), "appraisals": appraisals}}
+
     def _execute_single_plan(
         self,
         user_input: str,
         *,
         plan=None,
+        context=None,
     ) -> Dict[str, Any]:
         """Run one bounded Central Mind cognitive turn.
 
@@ -888,6 +907,7 @@ class CentralMind:
             "ts": time.time(),
             "turn": self.turn_count,
             "caller": self.caller,
+            "context": dict(context or {}),
             "memory": getattr(self, "memory", None),
         }
         self.chat_log.append({
@@ -1019,6 +1039,12 @@ class CentralMind:
         verification_failed = False
 
         for organ in organs:
+            manifest = getattr(organ, "manifest", {}) or {}
+            memory_domain = (
+                manifest.get("memory_domain", "Gen")
+                if isinstance(manifest, dict)
+                else "Gen"
+            )
             from .resource_socket import ResourceRequirement
 
             requirement = ResourceRequirement(
@@ -1037,12 +1063,13 @@ class CentralMind:
                 answers = self.questioner.ask(
                     response.get("questions", [])
                 )
-                response = self.resource_socket.request(
-                    requirement,
-                    request=request,
-                    cognitive_plan=plan.as_dict(),
-                    answers=answers,
-                )
+                if any(value is not None and str(value).strip() for value in answers.values()):
+                    response = self.resource_socket.request(
+                        requirement,
+                        request=request,
+                        cognitive_plan=plan.as_dict(),
+                        answers=answers,
+                    )
 
             real_organ = self._load_organ(organ)
             if real_organ is None:
@@ -1091,6 +1118,14 @@ class CentralMind:
                 response=response,
                 component=getattr(organ, "name", None),
             )
+
+            evaluation = (learning or {}).get("learning_evaluation") or {}
+            if (learning and learning.get("status") == "pending"
+                    and verified.get("ok") is True and appraisal.objective_outcome == "success"
+                    and evaluation.get("testable") is True and evaluation.get("ok") is True):
+                # Review a demonstrated observation through the canonical
+                # Memory Service lifecycle. Never create Raw or rewrite entries.
+                learning = self.learn_memory_proposal(learning["proposal_id"])
 
             capability_proposal = (
                 self.capability_expansion.propose_from_appraisal(appraisal)
@@ -1189,6 +1224,11 @@ class CentralMind:
             return {
                 "status": "ok",
                 "output": out,
+                "artifacts": combined.get("artifacts", []),
+                "domain": organ.name,
+                "capability": selected_step.capability,
+                "source_model": (getattr(self.caller, "last_source", None) or {}).get("name"),
+                **getattr(self.caller, "last_execution", {}),
                 "cognition": {
                     "plan": plan.as_dict(),
                     "appraisals": appraisals,

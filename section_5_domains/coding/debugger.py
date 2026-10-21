@@ -1,18 +1,10 @@
-"""Diagnose failures."""
-from __future__ import annotations
-
-from pathlib import Path
-from typing import Any, Dict
+"""Coding diagnosis through the shared capability resource."""
+from .cognition import request_model
 
 
 class Debugger:
-
-    def __init__(self, root: Path):
-        self.root = Path(root).resolve()
-
-    def diagnose(self, error_text: str) -> Dict[str, Any]:
-        # Simple heuristic — real diagnosis is done by the reasoner model.
-        lines = error_text.strip().splitlines()
-        if not lines:
-            return {"ok": False, "reason": "empty error"}
-        return {"ok": True, "reason": f"last line: {lines[-1]}"}
+    def diagnose(self, *, caller, task, evidence):
+        return request_model(caller, capability='debug', messages=[{
+            'role': 'user', 'content': f'Task: {task}\nObserved evidence:\n{evidence}\n'
+            'Identify supported causes and a testable repair. Distinguish hypotheses from observed facts.',
+        }])

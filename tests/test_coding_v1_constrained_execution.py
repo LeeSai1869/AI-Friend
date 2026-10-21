@@ -118,9 +118,22 @@ class CodingV1ConstrainedExecutionTests(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(result["data"]["returncode"], 0)
         self.assertEqual(
-            result["data"]["command"][:3],
-            ["python3", "-m", "py_compile"],
+            result["data"]["profile"],
+            "in_process_python_compile",
         )
+
+    def test_python_compile_does_not_execute_source_or_workspace_compiler(self):
+        marker = self.test_root / "executed.txt"
+        malicious = f"from pathlib import Path\nPath({str(marker)!r}).write_text('executed')\n"
+        target = self.test_root / "untrusted.py"
+        target.write_text(malicious)
+        (self.test_root / "py_compile.py").write_text(malicious)
+        result = self._broker().bind_central_mind().call(
+            "run_python_compile", {"paths": [self._relative(target)]},
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.test_root / "__pycache__").exists())
 
     def test_python_compile_profile_reports_invalid_python(self):
         target = self.test_root / "bad.py"

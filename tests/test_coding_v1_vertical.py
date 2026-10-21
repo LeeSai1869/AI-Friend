@@ -29,11 +29,11 @@ class DeterministicCoderCaller:
             "organ": "coding",
         }
 
-    def call(self, model_name, messages, system=None, max_tokens=2048):
+    def route(self, domain, capability, messages, max_tokens=2048):
         self.calls.append({
-            "model_name": model_name,
+            "domain": domain,
+            "capability": capability,
             "messages": messages,
-            "system": system,
             "max_tokens": max_tokens,
         })
 

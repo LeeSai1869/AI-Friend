@@ -21,10 +21,12 @@ import json
 
 class Caller:
 
-    def __init__(self, inventory, loader, router=None, ollama_url: str = "http://localhost:11434"):
+    def __init__(self, inventory, loader, router=None, ollama_url: str = "http://localhost:11434", memory=None):
         self.inventory = inventory
         self._load = loader  # a callable that returns the organ instance
         self.router = router
+        self.memory = memory
+        self.last_execution = {}
         self.ollama_url = ollama_url
         # The source of the last successful routed call. Domains
         # read this to attach a source tag when writing memory.
@@ -78,6 +80,7 @@ class Caller:
         messages: List[Dict[str, str]],
         max_tokens: int = 2048,
         max_attempts: Optional[int] = None,
+        source_scores=None,
     ) -> str:
         """Route a request to the registry-declared priority list.
 
@@ -86,17 +89,26 @@ class Caller:
 
         Raises RuntimeError if all LLMs in the roster fail.
         """
+        self.last_source = None
+        self.last_execution = {}
         if self.router is None:
             raise RuntimeError("no router attached to caller")
+        if source_scores is None and self.memory is not None:
+            try:
+                source_scores = self.memory.source_scores(domain=domain, capability=capability)
+            except Exception:
+                source_scores = {}
+        from functools import partial
 
         attempts: List[Dict[str, Any]] = []
 
         for attempt in self.router.try_capability(
             domain=domain,
             capability=capability,
-            call_fn=self._invoke_resource,
+            call_fn=partial(self._invoke_resource, max_tokens=max_tokens),
             messages=messages,
             max_attempts=max_attempts,
+            source_scores=source_scores,
         ):
             attempts.append(attempt)
             if attempt.get("ok"):
@@ -105,6 +117,7 @@ class Caller:
                     "name": attempt["model"],
                     "capability": capability,
                     "organ": domain,
+                    **self.last_execution,
                 }
                 return attempt["output"]
 
@@ -122,6 +135,7 @@ class Caller:
         llm_key: str,
         resource: Dict[str, Any],
         messages: List[Dict[str, str]],
+        max_tokens=2048,
     ) -> str:
         try:
             from interface import (
@@ -145,8 +159,6 @@ class Caller:
                 f"model resource {llm_key} has no execution identifier"
             )
 
-        return provider.chat(
-            messages,
-            model_name=execution_model,
-            max_tokens=2048,
-        )
+        output = provider.chat(messages, model_name=execution_model, max_tokens=max_tokens)
+        self.last_execution = {"provider": provider.name, "execution_model": execution_model}
+        return output

@@ -97,6 +97,9 @@ def make_mind(organ):
     mind.capability_expansion = CapabilityExpansion()
     mind.composer = Composer()
     mind.questioner = SimpleNamespace(ask=lambda questions: {})
+    infos = mind.router.route({})
+    from runtime_contract import configure_execution_contract
+    configure_execution_contract(mind, infos)
     return mind
 
 

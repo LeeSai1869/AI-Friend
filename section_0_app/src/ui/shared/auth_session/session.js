@@ -230,8 +230,12 @@ export function sendRaw(obj) {
   connect();
 }
 
+let turnSequence = 0;
+
 export function send(text, intent, options = {}) {
+  const requestId = `turn-${Date.now()}-${++turnSequence}`;
   const payload = {
+    request_id: requestId,
     text,
     intent,
     ts: Date.now(),
@@ -259,6 +263,7 @@ export function send(text, intent, options = {}) {
   }
 
   sendRaw(payload);
+  return requestId;
 }
 
 let domainRequestSequence = 0;

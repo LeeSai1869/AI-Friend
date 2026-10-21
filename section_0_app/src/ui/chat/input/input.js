@@ -2,8 +2,15 @@ export function createChatInput({ getIntent, onSend }) {
   const input = document.getElementById("input");
   const sendButton = document.getElementById("send");
 
+  let busy = false;
+  function setBusy(next) {
+    busy = Boolean(next);
+    if (sendButton) sendButton.disabled = busy;
+    if (input) input.setAttribute("aria-busy", String(busy));
+  }
+
   function submit() {
-    if (!input) {
+    if (!input || busy) {
       return false;
     }
 
@@ -50,5 +57,7 @@ export function createChatInput({ getIntent, onSend }) {
 
   return {
     submit,
+    setBusy,
+    isBusy: () => busy,
   };
 }

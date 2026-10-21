@@ -155,7 +155,8 @@ class SemanticUnderstanding:
             "with keys step_id, objective, kind, component, capability, "
             "depends_on, requirements, constraints, expected_outcome, "
             "confidence, rationale. clarification_candidates must be a list of "
-            "objects with keys attribute, question, options, default."
+            "objects with keys attribute, question, options, default. Each clarification attribute "
+            "must exactly match the subject of its corresponding unresolved information_need."
         )
 
         payload = {

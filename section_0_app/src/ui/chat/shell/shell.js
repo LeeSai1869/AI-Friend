@@ -2,6 +2,7 @@ import {
   send,
   onMessage,
   onAuthenticated,
+  onAuthStateChange,
 } from "../../shared/auth_session/session.js";
 
 import "../auth/login_overlay.js";
@@ -40,23 +41,42 @@ const leftPanel = createChatLeftPanel({
   onOpenIntake: openIntake,
 });
 
-createChatInput({
+let pendingTurn = null;
+const chatInput = createChatInput({
   getIntent: intent.getIntent,
 
   onSend({ text, intent: selectedIntent }) {
     conversation.appendMessage("user", text);
 
-    send(
+    pendingTurn = send(
       text,
       selectedIntent,
       {
         chat_id: conversation.getChatId(),
       },
     );
+    chatInput.setBusy(true);
+    conversation.appendToolStatus("Thinking…");
   },
 });
 
+onAuthStateChange((state) => {
+  if (!state.authenticated) {
+    pendingTurn = null;
+    chatInput.setBusy(false);
+  }
+});
+
 onMessage((msg) => {
+  if (msg.op === "turn_started" && msg.request_id === pendingTurn) {
+    conversation.setChatId(msg.chat_id);
+    return;
+  }
+  if (msg.role === "mind" && msg.request_id) {
+    if (pendingTurn && msg.request_id !== pendingTurn) return;
+    pendingTurn = null;
+    chatInput.setBusy(false);
+  }
   if (msg.op) {
     return;
   }
@@ -93,6 +113,7 @@ onMessage((msg) => {
           source_llm: msg.source_llm,
           domain: msg.domain,
           capability: msg.capability,
+          artifacts: msg.artifacts,
         }
       : null,
   );

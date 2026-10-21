@@ -3,6 +3,8 @@ from __future__ import annotations
 import tempfile
 import textwrap
 import unittest
+import sys
+import importlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,12 +22,20 @@ class FakeInventory:
 class BrokerOperationOwnershipTests(unittest.TestCase):
 
     def setUp(self):
+        self.original_sys_path = list(sys.path)
+        self.fixture_modules = {}
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
         self.tools = self.root / "section_8_tools"
         self.tools.mkdir(parents=True)
 
     def tearDown(self):
+        for prefix, previous in self.fixture_modules.items():
+            for name in tuple(sys.modules):
+                if name == prefix or name.startswith(prefix + "."):
+                    sys.modules.pop(name, None)
+            sys.modules.update(previous)
+        sys.path[:] = self.original_sys_path
         self.tmp.cleanup()
 
     def _write_tool(
@@ -35,6 +45,14 @@ class BrokerOperationOwnershipTests(unittest.TestCase):
         manifest_name,
         operation_name,
     ):
+        # Synthetic packages must neither reuse nor poison real tool packages.
+        self.fixture_modules[folder_name] = {
+            name: module for name, module in sys.modules.items()
+            if name == folder_name or name.startswith(folder_name + ".")
+        }
+        for name in self.fixture_modules[folder_name]:
+            sys.modules.pop(name, None)
+        importlib.invalidate_caches()
         folder = self.tools / folder_name
         folder.mkdir(parents=True)
 

@@ -71,6 +71,8 @@ class ChatRuntime:
             },
         }
 
+        if chat.pending_clarification:
+            packet["pending_clarification"] = dict(chat.pending_clarification)
         if isinstance(context, Mapping):
             packet["observations"] = dict(context)
 
@@ -206,14 +208,34 @@ class ChatRuntime:
 
         status = str(result.get("status") or "")
         answer = self._final_text(result)
+        if status == "needs_answers":
+            # Present the exact upstream questions as communication. The
+            # server also forwards the structured fields for UI presentation.
+            # Keep task status explicit; delivery is not task completion.
+            questions = result.get("questions") or []
+            answer = "\n".join(
+                str(q["question"]).strip() for q in questions
+                if isinstance(q, dict) and isinstance(q.get("question"), str)
+                and q["question"].strip()
+            )
 
         if answer:
             chat.add_turn(
                 "mind",
                 answer,
-                action="answer",
+                action="question" if status == "needs_answers" else "answer",
             )
 
+        if status == "needs_answers":
+            previous = chat.pending_clarification
+            chat.pending_clarification = {
+                "objective": previous.get("objective", user_text),
+                "questions": result.get("questions", []),
+            }
+        else:
+            chat.pending_clarification = {}
+        if result.get("domain"):
+            chat.domain = str(result["domain"])
         chat.update_summary()
         chat.save()
 
@@ -225,14 +247,21 @@ class ChatRuntime:
             "cognition": result.get("cognition", {}),
         }
 
+        for field in ("domain", "capability", "provider", "execution_model", "source_model", "source_llm", "artifacts", "memory_ids"):
+            if field in result:
+                response[field] = result[field]
+
         if status == "needs_answers":
             response["questions"] = result.get("questions", [])
-            response["error"] = "Central Mind requires additional information"
+            response["ok"] = bool(answer)
+            if not answer:
+                response["error"] = "Central Mind requested clarification without a question"
             return response
 
         if status == "error":
             response["error"] = str(
                 result.get("error")
+                or "; ".join(str(item) for item in result.get("errors", []))
                 or "Central Mind execution failed"
             )
             return response

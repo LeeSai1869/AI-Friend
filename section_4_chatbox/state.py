@@ -92,6 +92,7 @@ class Chat:
         self.turns: List[Turn] = []
         self.verified: List[Verified] = []
         self.rejected: List[Rejected] = []
+        self.pending_clarification: dict = {}
         self.created_at: float = time.time()
 
         if self.chat_file.exists():
@@ -379,6 +380,7 @@ class Chat:
             "topic": self.topic,
             "topic_lock": self.topic_lock,
             "created_at": self.created_at,
+            "pending_clarification": self.pending_clarification,
         }
         self.chat_file.write_text(
             json.dumps(meta, indent=2, ensure_ascii=False),
@@ -395,6 +397,8 @@ class Chat:
             self.topic = meta.get("topic", "")
             self.topic_lock = meta.get("topic_lock", self.topic_lock)
             self.created_at = meta.get("created_at", self.created_at)
+            pending = meta.get("pending_clarification", {})
+            self.pending_clarification = pending if isinstance(pending, dict) else {}
         except Exception:
             pass
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import textwrap
 import unittest
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -28,6 +29,13 @@ class FakeInventory:
 class BoundToolBrokerTests(unittest.TestCase):
 
     def setUp(self):
+        self.original_sys_path = list(sys.path)
+        self.filesystem_modules = {
+            name: module for name, module in sys.modules.items()
+            if name == "filesystem" or name.startswith("filesystem.")
+        }
+        for name in self.filesystem_modules:
+            sys.modules.pop(name, None)
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
         self.tools = self.root / "section_8_tools"
@@ -116,6 +124,11 @@ class BoundToolBrokerTests(unittest.TestCase):
         ])
 
     def tearDown(self):
+        for name in tuple(sys.modules):
+            if name == "filesystem" or name.startswith("filesystem."):
+                sys.modules.pop(name, None)
+        sys.modules.update(self.filesystem_modules)
+        sys.path[:] = self.original_sys_path
         self.tmp.cleanup()
 
     def _principal(self):

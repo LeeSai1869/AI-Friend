@@ -1,0 +1,143 @@
+"""Section 7's plug for the existing generic Central Mind resource socket.
+
+Registry metadata bootstraps selection; contextual verified evidence can reorder
+it. Failures try another provider within a bounded budget, never an echo answer.
+"""
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import yaml
+
+try:
+    from .resource_selector import rank_resources
+    from .interface import provider_name_for, execution_model_for
+except ImportError:
+    from resource_selector import rank_resources
+    from interface import provider_name_for, execution_model_for
+
+
+def _answer(text, structured_output=None):
+    if not isinstance(text, str):
+        raise ValueError("provider answer must be text")
+    # Strip only explicit provider reasoning boundaries, never guess from prose.
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+    if "<think>" in text or "</think>" in text:
+        raise ValueError("provider returned incomplete reasoning boundaries")
+    if text.startswith("```") and text.endswith("```"):
+        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    if not text or text.startswith("[model error]"):
+        raise ValueError("provider returned no usable answer")
+    if structured_output == "json":
+        json.loads(text)
+    return text
+
+
+class ModelRouter:
+    def __init__(self, registry_path, *, availability_probe=None):
+        self.registry_path = Path(registry_path)
+        data = yaml.safe_load(self.registry_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("llms"), dict):
+            raise ValueError("registry must declare an llms mapping")
+        self.registry = data
+        self.availability_probe = availability_probe
+
+    def _available(self, resource, cache):
+        if self.availability_probe is not None:
+            return bool(self.availability_probe(resource))
+        if provider_name_for(resource) != "ollama":
+            return True
+        try:
+            from .providers.ollama import OllamaProvider
+            from .interface import execution_model_for
+        except ImportError:
+            from providers.ollama import OllamaProvider
+            from interface import execution_model_for
+        provider = OllamaProvider(api_url=resource.get("api_url"))
+        endpoint = provider.api_url
+        if endpoint not in cache:
+            try:
+                cache[endpoint] = set(provider.models())
+            except Exception:
+                cache[endpoint] = set()
+        model = execution_model_for(resource)
+        if ":" not in model.rsplit("/", 1)[-1]:
+            model += ":latest"
+        return model in cache[endpoint]
+
+    def _candidates(self, requirement, source_scores=None):
+        requirement = dict(requirement)
+        domain = requirement.get("domain", "")
+        capability = requirement.get("capability", "")
+        hint = self.registry.get("domain_assignments", {}).get(domain, {}).get(capability, {})
+        if not isinstance(hint, dict):
+            hint = {}
+        resources = {}
+        for key, entry in self.registry["llms"].items():
+            if not isinstance(entry, dict):
+                continue
+            # Non-generative resources cannot answer a text reasoning request.
+            if str(entry.get("kind", "")).lower() in {"embedding", "embed", "image", "audio", "speech", "vision_encoder"}:
+                continue
+            if provider_name_for(entry) not in {"ollama", "openai", "openai_compat", "http"}:
+                continue
+            resource = dict(entry)
+            # eligible_domains are bootstrap guidance, not model ownership.
+            resource.pop("eligible_domains", None)
+            tasks = entry.get("best_tasks") or []
+            resource["task_quality"] = {
+                item["capability"]: item.get("quality", 0)
+                for item in tasks if isinstance(item, dict) and item.get("capability")
+            }
+            profile = entry.get("problem_solving") or {}
+            profile_key = {"reason": "multi_step_quality", "plan": "planning_quality",
+                           "write": "code_strength", "test": "code_strength", "debug": "code_strength", "answer": "prose_strength"}.get(capability)
+            if profile_key and isinstance(profile, dict):
+                resource["task_quality"][capability] = profile.get(profile_key, 0)
+            resources[key] = resource
+        # Memory's current interface returns counts of verified successful uses,
+        # not normalized quality. Keep unqualified/insufficient evidence weak.
+        minimum = self.registry.get("routing", {}).get("roster_reordering", {}).get("min_evidence_count", 3)
+        learned = {}
+        for key, count in (source_scores or {}).items():
+            if isinstance(count, (int, float)) and count >= minimum:
+                learned[key] = min(float(count) / (float(count) + minimum), 1.0)
+        return rank_resources(resources, requirement,
+                              bootstrap_priority=hint.get("priority") or [],
+                              learned_scores=learned)
+
+    def fulfill(self, *, requirement, call_fn, messages, source_scores=None, max_attempts=None, **context):
+        routing = self.registry.get("routing") or {}
+        budget = max(1, min(int(max_attempts or routing.get("max_attempts_per_capability", 3)), 10))
+        attempts = []
+        availability_cache = {}
+        generation_count = 0
+        for candidate in self._candidates(requirement, source_scores):
+            if not self._available(candidate.resource, availability_cache):
+                attempts.append({"model": candidate.key, "ok": False, "error": "not_available_at_runtime"})
+                continue
+            if generation_count >= budget:
+                break
+            generation_count += 1
+            try:
+                text = call_fn(candidate.key, candidate.resource, messages)
+                output = _answer(text, requirement.get("structured_output"))
+                return {"ok": True, "output": output, "model": candidate.key,
+                        "provider": provider_name_for(candidate.resource),
+                        "execution_model": execution_model_for(candidate.resource),
+                        "reasons": list(candidate.reasons), "attempts": attempts}
+            except Exception as exc:
+                # Do not expose provider exception strings: URLs may contain credentials.
+                attempts.append({"model": candidate.key, "ok": False, "error": type(exc).__name__})
+        return {"ok": False, "output": "", "error": "no available model satisfied the resource requirement",
+                "attempts": attempts, "required_resource": dict(requirement)}
+
+    def try_capability(self, *, domain, capability, call_fn, messages, max_attempts=None, source_scores=None):
+        result = self.fulfill(requirement={"domain": domain, "capability": capability},
+                              call_fn=call_fn, messages=messages,
+                              source_scores=source_scores, max_attempts=max_attempts)
+        yield from result["attempts"]
+        if result["ok"]:
+            yield result

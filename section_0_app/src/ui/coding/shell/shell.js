@@ -3,6 +3,7 @@ import {
   sendRaw,
   onMessage,
   onAuthenticated,
+  onAuthStateChange,
   sendDomainRequest,
 } from "../../shared/auth_session/session.js";
 
@@ -57,7 +58,9 @@ const conversation = createCodingConversation();
 const topBar = createChatTopBar();
 const editor = createCodingEditor();
 
-createCodingTerminal();
+const terminal = createCodingTerminal({
+  requestTests: () => sendDomainRequest("coder", "run_tests", {}),
+});
 createCodingLeftPanel();
 createCodingSettings();
 
@@ -67,13 +70,14 @@ const explorer = createCodingExplorer({
   },
 });
 
-createCodingInput({
+let pendingTurn = null;
+const chatInput = createCodingInput({
   getIntent: intent.getIntent,
 
   onSend({ text, intent: selectedIntent }) {
     conversation.appendMessage("user", text);
 
-    send(
+    pendingTurn = send(
       text,
       selectedIntent,
       {
@@ -85,6 +89,8 @@ createCodingInput({
         },
       },
     );
+    chatInput.setBusy(true);
+    conversation.appendToolStatus("Thinking…");
   },
 });
 
@@ -108,6 +114,7 @@ function renderChatHistory(chats) {
     }
 
     button.addEventListener("click", () => {
+      if (chatInput.isBusy()) return;
       sendRaw({
         op: "load_chat",
         chat_id: chat.chat_id,
@@ -121,15 +128,42 @@ function renderChatHistory(chats) {
 document
   .getElementById("coding-new-chat")
   ?.addEventListener("click", () => {
+    if (chatInput.isBusy()) return;
     conversation.newChat();
     topBar.setTopic("New chat", "general");
   });
 
+onAuthStateChange((state) => {
+  if (!state.authenticated) {
+    pendingTurn = null;
+    chatInput.setBusy(false);
+  }
+});
+
 onMessage((msg) => {
+  if (msg.op === "artifacts_changed") {
+    explorer.load(explorer.getCurrentPath());
+    const path = editor.getActivePath();
+    if (path && msg.artifacts?.includes(path)) sendDomainRequest("coder", "read_file", { path });
+    return;
+  }
+  if (msg.op === "turn_started" && msg.request_id === pendingTurn) {
+    conversation.setChatId(msg.chat_id);
+    return;
+  }
+  if (msg.role === "mind" && msg.request_id) {
+    if (pendingTurn && msg.request_id !== pendingTurn) return;
+    pendingTurn = null;
+    chatInput.setBusy(false);
+  }
   if (
     msg.op === "domain_result" &&
     msg.component === "coder"
   ) {
+    if (msg.operation === "run_tests") {
+      terminal.receiveTestResult(msg);
+      return;
+    }
     if (
       msg.operation === "open_project" ||
       msg.operation === "project_status"
@@ -192,7 +226,7 @@ onMessage((msg) => {
   conversation.appendMessage(
     msg.role === "user" ? "user" : "mind",
     msg.text ?? "",
-    msg.metadata || null,
+    msg.role === "mind" ? msg : null,
   );
 
   if (msg.chat_id) {
@@ -200,6 +234,11 @@ onMessage((msg) => {
   }
 
   if (msg.role === "mind") {
+    if (msg.chat_id) {
+      explorer.load(explorer.getCurrentPath());
+      const activePath = editor.getActivePath();
+      if (activePath) sendDomainRequest("coder", "read_file", { path: activePath });
+    }
     topBar.setTopic(
       msg.topic || "Current chat",
       msg.domain || "general",
