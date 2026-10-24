@@ -72,3 +72,4 @@ whisperkit/Models/
 secrets.json
 section_0_app/src-tauri/gen/
 whisperkit/
+.central_mind/chats/

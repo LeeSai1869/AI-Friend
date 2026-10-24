@@ -33,10 +33,12 @@ from section_8_tools.scaffold.scaffold import (
 )
 from section_8_tools.terminal.terminal import RunCommand
 from section_8_tools.vision.vision import (
+    DocumentRead,
     ImageDescribe,
     ImageReadText,
     PdfRead,
     VideoExtractFrames,
+    VideoRead,
 )
 from section_8_tools.web.web import WebFetch, WebSearch
 
@@ -170,7 +172,7 @@ class DeterministicToolEffectTests(unittest.TestCase):
         self.assertEqual(effects[0].action, "memory")
         self.assertEqual(
             effects[0].target,
-            "memory:knowledge_proposal",
+            "memory:raw_intake",
         )
 
     def _make_scaffold(self):
@@ -320,7 +322,25 @@ class DeterministicToolEffectTests(unittest.TestCase):
         })
         self.assertEqual(
             [e.action for e in pdf],
-            ["read"],
+            ["read", "service"],
+        )
+
+        document = self.tool(DocumentRead).effects({
+            "name": "scan.pdf",
+            "data_base64": "cGRm",
+        })
+        self.assertEqual(
+            [effect.target for effect in document],
+            ["document-reader", "ollama:qwen3-vl:8b"],
+        )
+
+        video_read = self.tool(VideoRead).effects({
+            "name": "movie.mp4",
+            "data_base64": "dmlkZW8=",
+        })
+        self.assertEqual(
+            [effect.action for effect in video_read],
+            ["execute", "service"],
         )
 
         video = self.tool(VideoExtractFrames).effects({

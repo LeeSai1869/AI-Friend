@@ -1,5 +1,6 @@
 import sys
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,12 +12,14 @@ sys.path.insert(0, str(CENTRAL_MIND))
 from mind.loop import CentralMind
 from mind.composer import Composer
 from mind.verifier import Verifier
+from section_4_chatbox.chatbox import Chatbox
 
 
 from section_1_central_mind.mind.reasoner import Reasoner
 from section_1_central_mind.mind.appraiser import SelfAppraiser
 from section_1_central_mind.mind.learner import Learner
 from section_1_central_mind.mind.capability_expansion import CapabilityExpansion
+from section_1_central_mind.mind.self_assessment.loop import SelfAssessmentLoop
 
 class BoundMarker:
     def __init__(self, chain):
@@ -67,11 +70,29 @@ class StubScorer:
         return kwargs if kwargs else (args[-1] if args and isinstance(args[-1], dict) else {})
 
 
+class StubResourceSocket:
+    def fulfill(self, requirement, **context):
+        if requirement["domain"] == "chat":
+            payload = json.loads(context["messages"][-1]["content"])
+            return {
+                "ok": True,
+                "output": "\n".join(payload["verified_evidence"]),
+                "model": "test-chat",
+            }
+        return {
+            "ok": True,
+            "output": json.dumps({"approved": True, "issues": []}),
+            "model": "test-reviewer",
+        }
+
+
 def make_mind(organs):
     mind = CentralMind.__new__(CentralMind)
     mind.turn_count = 0
     mind.broker = RecordingBroker()
     mind.chat_log = []
+    mind.chatbox = Chatbox()
+    mind.resource_socket = StubResourceSocket()
     mind.caller = object()
     mind.memory = None
     mind.memory_service = None
@@ -99,6 +120,12 @@ def make_mind(organs):
     mind._load_organ = lambda info: by_name[info.name]
     mind.verifier = Verifier()
     mind.scorer = StubScorer()
+    mind.self_assessment = SelfAssessmentLoop(
+        scorer=mind.scorer,
+        proposal_queue=None,
+        audit_stage=None,
+        inventory=None,
+    )
     mind.reasoner = Reasoner(memory=None)
     mind.appraiser = SelfAppraiser()
     mind.learner = Learner()
@@ -110,6 +137,7 @@ def make_mind(organs):
 
     from runtime_contract import configure_execution_contract
     configure_execution_contract(mind, infos)
+    mind.resource_socket.connect("model", StubResourceSocket().fulfill)
     return mind, infos
 
 

@@ -1,15 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::process;
-use std::sync::Mutex;
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, WebviewWindowBuilder, WebviewUrl, WindowEvent};
+use tauri::{Emitter, Manager, WebviewWindowBuilder, WebviewUrl, WindowEvent};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
 };
 
 struct BackendProcess(Mutex<Option<CommandChild>>);
+
+type SpeechChild = Arc<Mutex<Child>>;
+
+struct SpeechProcess(Arc<Mutex<Option<SpeechChild>>>);
 
 /// Application-scoped authenticated session credential.
 ///
@@ -82,6 +88,139 @@ fn clear_application_session(
             Ok(()) | Err(keyring::Error::NoEntry) => (),
             Err(_) => return Err("Could not remove saved session from macOS Keychain".to_string()),
         }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn start_speech_to_text(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, SpeechProcess>,
+    locale: String,
+) -> Result<(), String> {
+    let locale = locale.trim();
+    if locale.is_empty() || locale.len() > 64 {
+        return Err("A valid speech recognition locale is required.".to_string());
+    }
+
+    let mut active = state.0.lock().map_err(|error| error.to_string())?;
+    if let Some(process) = active.clone() {
+        let is_running = {
+            let mut child = process.lock().map_err(|error| error.to_string())?;
+            child.try_wait().map_err(|error| error.to_string())?.is_none()
+        };
+        if is_running {
+            return Err("Speech recognition is already running.".to_string());
+        }
+        *active = None;
+    }
+
+    #[cfg(target_os = "macos")]
+    let helper = {
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let contents = executable
+            .parent()
+            .and_then(std::path::Path::parent)
+            .ok_or_else(|| "Could not locate the application bundle.".to_string())?;
+        contents.join("Helpers/AI Friend Speech.app/Contents/MacOS/AI Friend Speech")
+    };
+    #[cfg(not(target_os = "macos"))]
+    return Err("Native speech-to-text is currently supported on macOS.".to_string());
+
+    #[cfg(target_os = "macos")]
+    {
+        if !helper.is_file() {
+            return Err(
+                "The native speech helper is missing. Reinstall AI Friend to enable dictation."
+                    .to_string(),
+            );
+        }
+        let mut child = Command::new(&helper)
+            .arg(locale)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| format!("Could not launch native speech recognition: {error}"))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "Speech helper did not provide an output stream.".to_string())?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "Speech helper did not provide an error stream.".to_string())?;
+        let child = Arc::new(Mutex::new(child));
+        *active = Some(Arc::clone(&child));
+
+        let app_for_output = app.clone();
+        let window_label = window.label().to_string();
+        let process_for_output = Arc::clone(&child);
+        let speech_state = Arc::clone(&state.0);
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                match line {
+                    Ok(line) => match serde_json::from_str::<serde_json::Value>(&line) {
+                        Ok(payload) => {
+                            let _ = app_for_output.emit_to(
+                                window_label.as_str(),
+                                "speech-recognition",
+                                payload,
+                            );
+                        }
+                        Err(error) => eprintln!("[speech] invalid helper response: {error}"),
+                    },
+                    Err(error) => {
+                        eprintln!("[speech] failed reading helper output: {error}");
+                        break;
+                    }
+                }
+            }
+
+            let process_id = process_for_output
+                .lock()
+                .ok()
+                .map(|process| process.id());
+            if let Ok(mut active) = speech_state.lock() {
+                let is_same_process = active
+                    .as_ref()
+                    .and_then(|current| current.lock().ok().map(|process| process.id()))
+                    == process_id;
+                if is_same_process {
+                    *active = None;
+                }
+            }
+        });
+
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines() {
+                match line {
+                    Ok(line) if !line.is_empty() => eprintln!("[speech] {line}"),
+                    Ok(_) => (),
+                    Err(error) => {
+                        eprintln!("[speech] failed reading helper diagnostics: {error}");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_speech_to_text(state: tauri::State<'_, SpeechProcess>) -> Result<(), String> {
+    let active = state.0.lock().map_err(|error| error.to_string())?;
+    let Some(process) = active.as_ref() else {
+        return Ok(());
+    };
+    let mut child = process.lock().map_err(|error| error.to_string())?;
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(b"stop\n")
+            .and_then(|()| stdin.flush())
+            .map_err(|error| format!("Could not stop speech recognition: {error}"))?;
     }
     Ok(())
 }
@@ -234,6 +373,24 @@ fn stop_backend(app: &tauri::AppHandle) {
     }
 }
 
+fn stop_speech(app: &tauri::AppHandle) {
+    let state = app.state::<SpeechProcess>();
+    let process = match state.0.lock() {
+        Ok(mut active) => active.take(),
+        Err(_) => None,
+    };
+
+    if let Some(process) = process {
+        if let Ok(mut child) = process.lock() {
+            if let Some(stdin) = child.stdin.as_mut() {
+                let _ = stdin.write_all(b"stop\n");
+                let _ = stdin.flush();
+            }
+            let _ = child.kill();
+        }
+    }
+}
+
 #[tauri::command]
 fn open_code_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("code") {
@@ -313,6 +470,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(BackendProcess(Mutex::new(None)))
+        .manage(SpeechProcess(Arc::new(Mutex::new(None))))
         .manage(ApplicationSession(Mutex::new(None)))
         .setup(|app| {
             start_backend(&app.handle())?;
@@ -324,7 +482,9 @@ fn main() {
             open_chat_window,
             set_application_session,
             get_application_session,
-            clear_application_session
+            clear_application_session,
+            start_speech_to_text,
+            stop_speech_to_text
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -353,6 +513,7 @@ fn main() {
                             "[app] final window closing — terminating fresh runtime"
                         );
 
+                        stop_speech(app);
                         stop_backend(app);
                         app.exit(0);
                     }
@@ -361,6 +522,7 @@ fn main() {
                 tauri::RunEvent::Exit => {
                     // Defense in depth for menu exits, OS termination paths,
                     // programmatic exits, and any future exit mechanism.
+                    stop_speech(app);
                     stop_backend(app);
                 }
 

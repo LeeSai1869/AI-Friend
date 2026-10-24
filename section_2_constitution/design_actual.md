@@ -1,6 +1,6 @@
 # Actual Design - AI Friend V1
 
-Generated: 2026-10-17 23:08:19
+Generated: 2026-10-21 17:27:49
 Source: mechanical analysis of code (no model)
 
 This document describes the actual current state of the code.
@@ -10,7 +10,7 @@ section's requirements.md.
 
 ## section_0_app
 
-Total files: 38  (.py: 0, .js/.ts: 24, .rs: 2, .md: 1, other: 11)
+Total files: 41  (.py: 0, .js/.ts: 26, .rs: 2, .md: 1, other: 12)
 
 ### JavaScript modules
 
@@ -37,6 +37,8 @@ Total files: 38  (.py: 0, .js/.ts: 24, .rs: 2, .md: 1, other: 11)
 - `section_0_app/src/ui/coding/shell/shell.js`
 - `section_0_app/src/ui/coding/terminal/terminal.js`
 - `section_0_app/src/ui/shared/auth_session/session.js`
+- `section_0_app/src/ui/shared/build.js`
+- `section_0_app/src/ui/shared/chat_history/chat_history.js`
 - `section_0_app/src/ui/shared/transport/backend.js`
 
 ### Rust modules
@@ -56,6 +58,7 @@ Total files: 38  (.py: 0, .js/.ts: 24, .rs: 2, .md: 1, other: 11)
 - `section_0_app/src/window-chat.html`
 - `section_0_app/src/window-code.html`
 - `section_0_app/src/window-trading.html`
+- `section_0_app/src-tauri/capabilities/desktop.json`
 - `section_0_app/src-tauri/gen/schemas/acl-manifests.json`
 - `section_0_app/src-tauri/gen/schemas/capabilities.json`
 - `section_0_app/src-tauri/gen/schemas/desktop-schema.json`
@@ -100,28 +103,26 @@ Total files: 8  (.py: 6, .js/.ts: 0, .rs: 0, .md: 1, other: 1)
 
 ## section_1_central_mind
 
-Total files: 43  (.py: 35, .js/.ts: 0, .rs: 0, .md: 7, other: 1)
+### Central Mind activity boundaries
+
+- `mind/regular_operation/` owns regular request orchestration.
+- `mind/self_assessment/` owns self-assessment and its Administrator-review proposals.
+- `mind/feature_expansion/` owns capability-gap expansion proposals.
+- `mind/shared/` owns the shared questionnaire interface.
+Legacy module paths re-export these implementations for compatibility.
+
+Total files: 48  (.py: 40, .js/.ts: 0, .rs: 0, .md: 7, other: 1)
 
 ### Python modules
 
-- `section_1_central_mind/auth_service.py` (413 lines)
+- `section_1_central_mind/auth_service.py` (415 lines)
   - imports: __future__, hashlib, hmac, json, contextlib, os, re, secrets
   - class `AuthenticationError`: 
   - class `AuthService`: __init__, _connect, _initialize, _password_material, _check_credentials_input, _token_hash, _audit, _audit_committed
 - `section_1_central_mind/bootstrap.py` (35 lines)
   - imports: __future__, sys, pathlib
   - functions: add_sections_to_path
-- `section_1_central_mind/chat_container.py` (487 lines)
-  - imports: __future__, json, time, uuid, dataclasses, pathlib, typing
-  - class `Turn`: 
-  - class `Rejected`: 
-  - class `Verified`: 
-  - class `Chat`: __init__, _new_id, is_first_message, set_topic, check_topic, _words, _recent_text, model_messages
-  - class `ChatStore`: __init__, create, load, list_ids, latest
-- `section_1_central_mind/chatbox.py` (66 lines)
-  - imports: __future__, typing
-  - class `Chatbox`: __init__, ask, notify, present, tool_status
-- `section_1_central_mind/config.py` (36 lines)
+- `section_1_central_mind/config.py` (35 lines)
   - imports: __future__, json, pathlib
   - functions: load_config, save_default_config
 - `section_1_central_mind/guard/__init__.py` (3 lines)
@@ -151,34 +152,35 @@ Total files: 43  (.py: 35, .js/.ts: 0, .rs: 0, .md: 7, other: 1)
 - `section_1_central_mind/guard/production_policy.py` (118 lines)
   - imports: __future__, effect_policy, policy
   - functions: build_production_guard_policy, build_production_effect_policy
-- `section_1_central_mind/guard/resources.py` (368 lines)
-  - imports: __future__, dataclasses, pathlib, typing
+- `section_1_central_mind/guard/resources.py` (377 lines)
+  - imports: __future__, dataclasses, pathlib, os, typing
   - class `ResourceDescriptor`: __post_init__, to_dict
   - class `ResourceClassifier`: __init__, _is_within, _build_component_roots, _semantic_roots, boundaries_within, classify
 - `section_1_central_mind/main.py` (124 lines)
-  - imports: __future__, sys, pathlib, bootstrap, chatbox, mind
+  - imports: __future__, sys, pathlib, bootstrap, section_4_chatbox, mind
   - functions: main, _argument_value, main_serve
-- `section_1_central_mind/mind/__init__.py` (4 lines)
-  - imports: loop, organ
+- `section_1_central_mind/mind/__init__.py` (10 lines)
+  - imports: loop, organ, proposals, audit, scheduler
 - `section_1_central_mind/mind/appraiser.py` (173 lines)
   - imports: __future__, typing, cognition
   - class `SelfAppraiser`: appraise, capability_gap, _classify_failure, _reusable_value
+- `section_1_central_mind/mind/audit.py` (110 lines)
+  - imports: __future__, typing
+  - class `AuditStage`: __init__, evaluate, _v
 - `section_1_central_mind/mind/broker.py` (676 lines)
-  - imports: __future__, importlib, importlib.util, sys, time, section_1_central_mind.guard.contract, section_1_central_mind.guard.effects, section_1_central_mind.guard.resources
+  - imports: __future__, importlib, importlib.util, sys, time, guard.contract, guard.effects, guard.resources
   - class `BoundToolBroker`: __init__, component_chain, call, available, with_workspace, __setattr__
   - class `ToolBroker`: __init__, _discover, bind_component, bind_central_mind, reset_budget, available, _call_bound, _finish
-- `section_1_central_mind/mind/caller.py` (152 lines)
+- `section_1_central_mind/mind/caller.py` (167 lines)
   - imports: __future__, typing, json
   - class `Caller`: __init__, call, route, _invoke_resource
-- `section_1_central_mind/mind/capability_expansion.py` (77 lines)
+- `section_1_central_mind/mind/capability_expansion.py` (118 lines)
   - imports: __future__, dataclasses, hashlib, typing, time
   - class `CapabilityProposal`: as_dict
   - class `CapabilityExpansion`: __init__, propose_from_appraisal, proposals
-- `section_1_central_mind/mind/chat_runtime.py` (879 lines)
-  - imports: __future__, dataclasses, pathlib, typing, chat_container
-  - class `ChatRuntime`: __init__, _provider_for, open_chat, _reasoning_plan, _capability_context, _memory_context, _source_scores, _route_from_plan
-- `section_1_central_mind/mind/cognition.py` (105 lines)
+- `section_1_central_mind/mind/cognition.py` (134 lines)
   - imports: __future__, dataclasses, typing
+  - class `CognitiveStep`: as_dict
   - class `CognitivePlan`: as_dict
   - class `Appraisal`: __post_init__, as_dict
 - `section_1_central_mind/mind/composer.py` (58 lines)
@@ -194,37 +196,61 @@ Total files: 43  (.py: 35, .js/.ts: 0, .rs: 0, .md: 7, other: 1)
 - `section_1_central_mind/mind/learner.py` (88 lines)
   - imports: __future__, typing
   - class `Learner`: __init__, learn
-- `section_1_central_mind/mind/loop.py` (702 lines)
+- `section_1_central_mind/mind/loop.py` (1545 lines)
   - imports: __future__, time, pathlib, typing, inventory, router, composer, questioner
-  - class `CentralMind`: __init__, _receive_memory_proposal, learn_memory_proposal, decide_memory_proposal, _semantic_route_model, _log_tool, process, _no_handler
-- `section_1_central_mind/mind/model_router.py` (384 lines)
-  - imports: __future__, re, pathlib, typing
-  - class `ModelRouter`: __init__, bootstrap_priority_for, priority_for, _is_generative, _task_quality, candidates_for, llm_definition, ollama_tag
+  - class `CentralMind`: __init__, _record_experience, run_self_assessment, _fulfill_domain_requirement, _receive_memory_proposal, learn_memory_proposal, decide_memory_proposal, _semantic_route_model
 - `section_1_central_mind/mind/organ.py` (99 lines)
   - imports: __future__, typing
   - class `Organ`: can_handle, handle, questions, verify, evaluate_knowledge, receive_proposal
+- `section_1_central_mind/mind/proposals.py` (137 lines)
+  - imports: __future__, time, uuid, dataclasses, typing
+  - class `ProposalContractError`: 
+  - class `Proposal`: __post_init__, as_dict
+  - class `ProposalQueue`: __init__, append, get, list, record_audit, record_decision, _require
 - `section_1_central_mind/mind/questioner.py` (29 lines)
   - imports: __future__, typing
   - class `Questioner`: __init__, ask
-- `section_1_central_mind/mind/reasoner.py` (276 lines)
-  - imports: __future__, typing, json, cognition
-  - class `Reasoner`: __init__, _recall, _candidate_components, _semantic_route, plan
+- `section_1_central_mind/mind/reasoner/__init__.py` (9 lines)
+  - imports: head
+- `section_1_central_mind/mind/reasoner/consultation.py` (137 lines)
+  - imports: __future__, typing
+  - class `Consultation`: __init__, available, request
+- `section_1_central_mind/mind/reasoner/discovery.py` (235 lines)
+  - imports: __future__, typing
+  - class `Discovery`: __init__, _component, validate_consultation, trusted_consultations, unresolved_material_needs
+- `section_1_central_mind/mind/reasoner/head.py` (831 lines)
+  - imports: __future__, typing, cognition, state, understanding, discovery, consultation
+  - class `Reasoner`: __init__, _recall, _memory_ids, _semantic_catalog, _semantic_proposal, _strings, _assimilate_proposal, _validate_steps
+- `section_1_central_mind/mind/reasoner/state.py` (134 lines)
+  - imports: __future__, dataclasses, typing
+  - class `ReasoningEvidence`: as_dict
+  - class `ReasoningState`: add_evidence, mark_consulted, can_continue, can_consult, begin_cycle, evidence_payload, as_dict
+- `section_1_central_mind/mind/reasoner/understanding.py` (380 lines)
+  - imports: __future__, json, typing
+  - class `SemanticUnderstanding`: __init__, _string_list, _confidence, _strip_json_fence, _catalog, propose
+- `section_1_central_mind/mind/resource_socket.py` (91 lines)
+  - imports: __future__, dataclasses, typing
+  - class `ResourceRequirement`: as_dict
+  - class `ResourceSocket`: __init__, connect, connected, request
 - `section_1_central_mind/mind/router.py` (68 lines)
   - imports: __future__, typing, inventory
   - class `Router`: __init__, route, _score, _fallback
+- `section_1_central_mind/mind/scheduler.py` (118 lines)
+  - imports: __future__, threading, time, dataclasses, typing
+  - class `_Job`: 
+  - class `Scheduler`: __init__, register, unregister, start, stop, run_once, status, _run
 - `section_1_central_mind/mind/scorer.py` (121 lines)
   - imports: __future__, collections, copy, typing, json, time
   - class `EvidenceContractError`: 
   - class `Scorer`: __init__, record, recent, read_records, _validate_json
-- `section_1_central_mind/mind/tool_loop.py` (362 lines)
-  - imports: __future__, json, re, typing
-  - class `ToolLoop`: __init__, run, _tools_block, _domains_block, _ask_model, _parse_json, _format_tool_result, _summarize
 - `section_1_central_mind/mind/verifier.py` (41 lines)
   - imports: __future__, typing
   - class `Verifier`: _valid_verdict, verify
-- `section_1_central_mind/server.py` (1125 lines)
+- `section_1_central_mind/runtime_identity.py` (2 lines)
+- `section_1_central_mind/server.py` (1207 lines)
   - imports: __future__, asyncio, json, os, sys, pathlib, typing, auth_service
-  - class `AppChatbox`: __init__, ask, notify, present, tool_status
+  - class `AppChatbox`: __init__, ask, _emit, notify, present, tool_status
+  - class `SessionRuntimes`: __init__, resolve, subscribe, unsubscribe, forget
   - functions: _process_exists, _default_auth_database, _is_within_root, _guard_principal_from_account, run_server
 
 ### Documentation
@@ -271,8 +297,8 @@ Total files: 9  (.py: 8, .js/.ts: 0, .rs: 0, .md: 1, other: 0)
 - `section_3_memory/bridge.py` (228 lines)
   - imports: __future__, pathlib, typing, api
   - class `MemoryBridge`: __init__, recall, recall_tested, recall_rejections, get, remember_raw, remember_tested, remember_derived
-- `section_3_memory/config.py` (94 lines)
-  - imports: __future__, pathlib
+- `section_3_memory/config.py` (96 lines)
+  - imports: __future__, pathlib, os
   - functions: compute_score, compute_state
 - `section_3_memory/entry.py` (184 lines)
   - imports: __future__, time, dataclasses, typing, 
@@ -298,44 +324,86 @@ Total files: 9  (.py: 8, .js/.ts: 0, .rs: 0, .md: 1, other: 0)
 
 ## section_4_chatbox
 
-Total files: 1  (.py: 1, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
+Total files: 4  (.py: 4, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
 
 ### Python modules
 
-- `section_4_chatbox/__init__.py` (3 lines)
-  - imports: chatbox
+- `section_4_chatbox/__init__.py` (22 lines)
+  - imports: chatbox, runtime, state
+- `section_4_chatbox/chatbox.py` (98 lines)
+  - imports: __future__, typing
+  - class `Chatbox`: __init__, ask, render_for_review, notify, present, tool_status
+- `section_4_chatbox/runtime.py` (313 lines)
+  - imports: __future__, pathlib, os, typing, state
+  - class `ChatRuntime`: __init__, delete_chat, open_chat, _context_packet, _final_text, list_chats, load_chat, respond
+- `section_4_chatbox/state.py` (530 lines)
+  - imports: __future__, json, time, uuid, hashlib, re, shutil, dataclasses
+  - class `Turn`: 
+  - class `Rejected`: 
+  - class `Verified`: 
+  - class `Chat`: __init__, _new_id, is_first_message, set_topic, check_topic, _words, _recent_text, model_messages
+  - class `ChatStore`: __init__, _chat_path, delete, create, load, list_ids, latest
 
 ## section_5_domains
 
-Total files: 53  (.py: 51, .js/.ts: 0, .rs: 0, .md: 1, other: 1)
+Total files: 65  (.py: 63, .js/.ts: 0, .rs: 0, .md: 1, other: 1)
 
 ### Python modules
 
 - `section_5_domains/__init__.py` (6 lines)
 - `section_5_domains/coding/__init__.py` (1 lines)
-- `section_5_domains/coding/__manifest__.py` (60 lines)
-- `section_5_domains/coding/coding_engine.py` (503 lines)
-  - imports: __future__, pathlib, typing, mind.organ, project_context
-  - class `CodingOrgan`: __init__, verify, can_handle, open_project, close_project, describe_project, list_project_tree, project_broker
+- `section_5_domains/coding/__manifest__.py` (74 lines)
+- `section_5_domains/coding/classification/__init__.py` (3 lines)
+  - imports: classifier
+- `section_5_domains/coding/classification/classifier.py` (84 lines)
+  - imports: __future__, cognition, typing
+  - class `CodingClassifier`: classify
+- `section_5_domains/coding/coding_engine.py` (641 lines)
+  - imports: __future__, pathlib, typing, mind.organ, project_context, classification, inspection, recall
+  - class `CodingOrgan`: __init__, _for_caller, evaluate_knowledge, verify, can_handle, open_project, close_project, describe_project
   - functions: _assess_coding_result
-- `section_5_domains/coding/debugger.py` (18 lines)
-  - imports: __future__, pathlib, typing
-  - class `Debugger`: __init__, diagnose
+- `section_5_domains/coding/cognition.py` (118 lines)
+  - imports: __future__, ast, json
+  - class `CodingCycle`: generate
+  - functions: request_model, parse_object, resource_question
+- `section_5_domains/coding/debugger.py` (10 lines)
+  - imports: cognition
+  - class `Debugger`: diagnose
+- `section_5_domains/coding/execution.py` (66 lines)
+  - imports: __future__, json, cognition, tester
+  - class `CodingExecution`: __init__, run
+- `section_5_domains/coding/experience.py` (54 lines)
+  - imports: __future__, collections, hashlib, json, tester
+  - class `CodingExperience`: __init__, _key, remember, evaluate
 - `section_5_domains/coding/history/__init__.py` (3 lines)
   - imports: history
 - `section_5_domains/coding/history/history.py` (80 lines)
   - imports: __future__, json, pathlib, time, workspace
   - class `ProjectHistory`: __init__, path, read, prepare_append
-- `section_5_domains/coding/inspector.py` (48 lines)
-  - imports: __future__, pathlib, typing
-  - class `Inspector`: __init__, inspect, summary
+- `section_5_domains/coding/inspection/__init__.py` (3 lines)
+  - imports: inspector
+- `section_5_domains/coding/inspection/analyzer.py` (73 lines)
+  - imports: __future__, cognition, typing
+  - class `InspectionAnalyzer`: read_selected, analyze
+- `section_5_domains/coding/inspection/inspector.py` (131 lines)
+  - imports: __future__, analyzer, selector
+  - class `CodingInspector`: __init__, inspect
+- `section_5_domains/coding/inspection/selector.py` (82 lines)
+  - imports: __future__, cognition, json, re, typing
+  - class `RelevantFileSelector`: select
+- `section_5_domains/coding/inspector.py` (4 lines)
+  - imports: inspection
 - `section_5_domains/coding/memory/__init__.py` (3 lines)
   - imports: memory
 - `section_5_domains/coding/memory/memory.py` (53 lines)
   - imports: __future__, json, pathlib, workspace
   - class `ProjectMemory`: __init__, path, read, prepare_write
-- `section_5_domains/coding/planner.py` (43 lines)
-  - imports: __future__, typing
+- `section_5_domains/coding/operations.py` (57 lines)
+  - imports: __future__, json, pathlib, cognition, planner, tester
+  - class `CodingOperations`: plan, test
+  - functions: selected_capability, python_tests
+- `section_5_domains/coding/planner.py` (14 lines)
+  - imports: __future__, cognition
   - class `Planner`: plan
 - `section_5_domains/coding/project/__init__.py` (3 lines)
   - imports: project
@@ -345,30 +413,34 @@ Total files: 53  (.py: 51, .js/.ts: 0, .rs: 0, .md: 1, other: 1)
 - `section_5_domains/coding/project_context.py` (88 lines)
   - imports: __future__, pathlib, history, memory, project, rules, tree, workspace
   - class `CodingProjectContext`: __init__, is_open, project, workspace, tree, rules, memory, history
+- `section_5_domains/coding/recall/__init__.py` (3 lines)
+  - imports: recaller
+- `section_5_domains/coding/recall/recaller.py` (64 lines)
+  - imports: __future__, typing
+  - class `CodingRecaller`: recall
 - `section_5_domains/coding/rules/__init__.py` (3 lines)
   - imports: rules
 - `section_5_domains/coding/rules/rules.py` (38 lines)
   - imports: __future__, workspace
   - class `ProjectRules`: __init__, load
-- `section_5_domains/coding/tester.py` (37 lines)
-  - imports: __future__, subprocess, sys, pathlib, typing
-  - class `Tester`: __init__, run
+- `section_5_domains/coding/tester.py` (20 lines)
+  - imports: __future__
+  - class `Tester`: run, passed
 - `section_5_domains/coding/tree/__init__.py` (3 lines)
   - imports: tree
-- `section_5_domains/coding/tree/tree.py` (45 lines)
-  - imports: __future__, workspace
-  - class `ProjectTree`: __init__, list
-- `section_5_domains/coding/verifier.py` (18 lines)
-  - imports: __future__, pathlib, typing
-  - class `Verifier`: __init__, verify
+- `section_5_domains/coding/tree/tree.py` (113 lines)
+  - imports: __future__, pathlib, workspace
+  - class `ProjectTree`: __init__, _trusted_entry, list, files
+- `section_5_domains/coding/verifier.py` (62 lines)
+  - imports: typing, tester
+  - class `Verifier`: verify
 - `section_5_domains/coding/workspace/__init__.py` (3 lines)
   - imports: workspace
 - `section_5_domains/coding/workspace/workspace.py` (42 lines)
   - imports: __future__, pathlib, project
   - class `CodingWorkspace`: __init__, resolve, relative, contains
-- `section_5_domains/coding/writer.py` (70 lines)
-  - imports: __future__, json, re, urllib.request, pathlib, typing
-  - class `Writer`: __init__, write, _call_ollama, _extract_file_path, _extract_code
+- `section_5_domains/coding/writer.py` (7 lines)
+  - imports: execution
 - `section_5_domains/general/__manifest__.py` (20 lines)
 - `section_5_domains/general/general_engine.py` (36 lines)
   - imports: __future__, typing, mind.organ
@@ -385,7 +457,7 @@ Total files: 53  (.py: 51, .js/.ts: 0, .rs: 0, .md: 1, other: 1)
 - `section_5_domains/image/tester.py` (0 lines)
 - `section_5_domains/image/verifier.py` (0 lines)
 - `section_5_domains/image/writer.py` (0 lines)
-- `section_5_domains/languages/__manifest__.py` (36 lines)
+- `section_5_domains/languages/__manifest__.py` (58 lines)
 - `section_5_domains/languages/languages_engine.py` (418 lines)
   - imports: __future__, json, re, pathlib, typing, mind.organ
   - class `LanguagesEngine`: __init__, _load_languages, known_natural, known_technical, handle, _learn, _read, _translate
@@ -437,52 +509,32 @@ Total files: 2  (.py: 2, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
 
 ## section_7_models
 
-Total files: 18  (.py: 17, .js/.ts: 0, .rs: 0, .md: 1, other: 0)
+Total files: 8  (.py: 7, .js/.ts: 0, .rs: 0, .md: 1, other: 0)
 
 ### Python modules
 
 - `section_7_models/__init__.py` (3 lines)
   - imports: interface
-- `section_7_models/chat/__manifest__.py` (19 lines)
-- `section_7_models/chat/chat_engine.py` (70 lines)
-  - imports: __future__, json, urllib.request, typing, mind.organ
-  - class `ChatModel`: handle, _call_ollama
-- `section_7_models/coder/__manifest__.py` (9 lines)
-- `section_7_models/coder/coder_engine.py` (67 lines)
-  - imports: __future__, json, urllib.request, typing, mind.organ
-  - class `CoderModel`: handle, _call_ollama
-- `section_7_models/interface.py` (186 lines)
+- `section_7_models/interface.py` (183 lines)
   - imports: __future__, typing
   - class `ModelProvider`: generate, chat, is_available
   - functions: provider_name_for, execution_model_for, build_resource_provider, build_provider
-- `section_7_models/providers/__init__.py` (19 lines)
-  - imports: echo, ollama, openai_compatible, transformers_local, mlx_local, whisperkit, mflux
-- `section_7_models/providers/echo.py` (22 lines)
-  - imports: __future__
-  - class `EchoProvider`: generate, is_available
-- `section_7_models/providers/mflux.py` (107 lines)
-  - imports: __future__, pathlib, shutil, subprocess, typing
-  - class `MFluxProvider`: __init__, is_available, render, chat, generate
-- `section_7_models/providers/mlx_local.py` (130 lines)
-  - imports: __future__, typing
-  - class `MLXProvider`: __init__, is_available, _load, _fallback_prompt, chat, generate
-- `section_7_models/providers/ollama.py` (137 lines)
-  - imports: __future__, json, urllib.error, urllib.request
-  - class `OllamaProvider`: __init__, is_available, chat, generate
-- `section_7_models/providers/openai_compatible.py` (52 lines)
-  - imports: __future__, json, urllib.request, urllib.error
-  - class `OpenAICompatibleProvider`: __init__, is_available, generate
-- `section_7_models/providers/transformers_local.py` (163 lines)
-  - imports: __future__, typing
-  - class `TransformersProvider`: __init__, is_available, _load, _messages_to_prompt, generate, chat
-- `section_7_models/providers/whisperkit.py` (104 lines)
-  - imports: __future__, pathlib, shutil, subprocess, typing
-  - class `WhisperKitProvider`: __init__, is_available, transcribe, chat, generate
-- `section_7_models/translator/__init__.py` (1 lines)
-- `section_7_models/translator/__manifest__.py` (10 lines)
-- `section_7_models/translator/translator_engine.py` (172 lines)
-  - imports: __future__, json, re, urllib.request, urllib.error, typing, mind.organ
-  - class `TranslatorModel`: handle, _call_ollama, _strip_reasoning
+- `section_7_models/model_router.py` (180 lines)
+  - imports: __future__, json, re, pathlib, yaml, requests
+  - class `ModelRouter`: __init__, _available, _candidates, fulfill, try_capability
+  - functions: failure_code, _answer
+- `section_7_models/providers/__init__.py` (1 lines)
+- `section_7_models/providers/ollama.py` (65 lines)
+  - imports: __future__, os, requests
+  - class `OllamaProvider`: __init__, models, is_available, chat, generate
+- `section_7_models/providers/openai_compatible.py` (46 lines)
+  - imports: __future__, requests
+  - class `OpenAICompatibleProvider`: __init__, chat, generate
+- `section_7_models/resource_selector.py` (448 lines)
+  - imports: __future__, dataclasses, typing
+  - class `ResourceRequirement`: from_mapping
+  - class `ResourceCandidate`: 
+  - functions: _strings, _blob, _installed, _quality, _eligible, rank_resources
 
 ### Documentation
 
@@ -490,7 +542,7 @@ Total files: 18  (.py: 17, .js/.ts: 0, .rs: 0, .md: 1, other: 0)
 
 ## section_8_tools
 
-Total files: 24  (.py: 24, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
+Total files: 25  (.py: 25, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
 
 ### Python modules
 
@@ -500,13 +552,13 @@ Total files: 24  (.py: 24, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
   - imports: __future__, pathlib
   - functions: missing_parent_directories
 - `section_8_tools/_base/tool.py` (44 lines)
-  - imports: __future__, pathlib, typing, section_1_central_mind.guard.contract
+  - imports: __future__, pathlib, typing, guard.contract
   - class `Tool`: __init__, effects, call, _resolve
 - `section_8_tools/filesystem/__init__.py` (2 lines)
   - imports: filesystem
 - `section_8_tools/filesystem/__manifest__.py` (25 lines)
 - `section_8_tools/filesystem/filesystem.py` (228 lines)
-  - imports: __future__, pathlib, typing, _base.tool, section_1_central_mind.guard.contract, _base.paths
+  - imports: __future__, pathlib, typing, _base.tool, guard.contract, _base.paths
   - class `ListFiles`: effects, call
   - class `ReadFile`: effects, call
   - class `SearchFiles`: effects, call
@@ -515,29 +567,32 @@ Total files: 24  (.py: 24, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
   - imports: folders
 - `section_8_tools/folders/__manifest__.py` (16 lines)
 - `section_8_tools/folders/folders.py` (64 lines)
-  - imports: __future__, pathlib, typing, _base.tool, _base.paths, section_1_central_mind.guard.contract
+  - imports: __future__, pathlib, typing, _base.tool, _base.paths, guard.contract
   - class `CreateFolder`: effects, call
 - `section_8_tools/intake/__init__.py` (2 lines)
   - imports: intake
 - `section_8_tools/intake/__manifest__.py` (21 lines)
-- `section_8_tools/intake/intake.py` (315 lines)
-  - imports: __future__, json, re, time, pathlib, typing, _base.tool, section_1_central_mind.guard.contract
-  - class `IntakePropose`: effects, call
+- `section_8_tools/intake/intake.py` (233 lines)
+  - imports: __future__, json, time, pathlib, typing, _base.tool, guard.contract
+  - class `IntakePropose`: effects, _source_path, _read_workspace, call
   - class `IntakeCommit`: effects, call
 - `section_8_tools/scaffold/__init__.py` (2 lines)
   - imports: scaffold
 - `section_8_tools/scaffold/__manifest__.py` (23 lines)
 - `section_8_tools/scaffold/scaffold.py` (326 lines)
-  - imports: __future__, json, pathlib, typing, _base.tool, section_1_central_mind.guard.contract, _base.paths
+  - imports: __future__, json, pathlib, typing, _base.tool, guard.contract, _base.paths
   - class `_ScaffoldBase`: _scaffolds_root
   - class `ListScaffolds`: effects, call
   - class `ReadScaffold`: effects, call
   - class `ApplyScaffold`: effects, call
 - `section_8_tools/terminal/__init__.py` (2 lines)
   - imports: terminal
-- `section_8_tools/terminal/__manifest__.py` (25 lines)
-- `section_8_tools/terminal/terminal.py` (234 lines)
-  - imports: __future__, shlex, subprocess, pathlib, typing, _base.tool, section_1_central_mind.guard.contract
+- `section_8_tools/terminal/__manifest__.py` (27 lines)
+- `section_8_tools/terminal/python_tests.py` (234 lines)
+  - imports: __future__, json, io, tarfile, time, os, pathlib, re
+  - class `RunPythonTests`: _validate, effects, call
+- `section_8_tools/terminal/terminal.py` (213 lines)
+  - imports: __future__, shlex, subprocess, pathlib, typing, _base.tool, guard.contract, python_tests
   - class `RunCommand`: effects, call
   - class `RunPythonCompile`: _validated_paths, effects, call
   - functions: _result
@@ -554,7 +609,8 @@ Total files: 24  (.py: 24, .js/.ts: 0, .rs: 0, .md: 0, other: 0)
 - `section_8_tools/web/__init__.py` (2 lines)
   - imports: web
 - `section_8_tools/web/__manifest__.py` (19 lines)
-- `section_8_tools/web/web.py` (179 lines)
-  - imports: __future__, re, typing, _base.tool, section_1_central_mind.guard.contract
+- `section_8_tools/web/web.py` (218 lines)
+  - imports: __future__, re, html.parser, typing, _base.tool, guard.contract
+  - class `_TextExtractor`: __init__, handle_starttag, handle_endtag, handle_data
   - class `WebSearch`: effects, call
   - class `WebFetch`: effects, call

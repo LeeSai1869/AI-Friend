@@ -102,8 +102,13 @@ def main_serve() -> int:
             "--app-runtime-token"
         )
 
-    # Documentation generation is an administrator/development operation.
-    # Serving the application must not start a watcher that rewrites core docs.
+    # Start the designer watcher.
+    try:
+        from mind.designer import Designer
+        designer = Designer(project_root)
+        designer.start()
+    except Exception as e:
+        print(f"[main] designer failed to start: {e}")
 
     run_server(
         project_root,

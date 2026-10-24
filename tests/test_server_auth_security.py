@@ -15,6 +15,8 @@ import server
 
 ADMIN_USER = "security_admin"
 ADMIN_PASSWORD = "A-long-test-password-1"
+TRAINER_USER = "security_trainer"
+TRAINER_PASSWORD = "A-long-test-password-2"
 
 
 class FakeWebSocket:
@@ -128,10 +130,16 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
         ])
         self.assert_auth_required(sent)
 
-    def test_authenticated_intake_commit_invokes_central_learning_decision(self):
+    def test_authenticated_trainer_intake_stores_raw_memory(self):
+        admin_session = self.auth.login(ADMIN_USER, ADMIN_PASSWORD)
+        self.auth.create_account(
+            admin_session["token"],
+            TRAINER_USER,
+            TRAINER_PASSWORD,
+            role="trainer",
+        )
         captured = {
             "broker_calls": [],
-            "learn_calls": [],
         }
 
         class IntakeMemoryService:
@@ -157,8 +165,9 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
                 return {
                     "ok": True,
                     "data": {
-                        "proposal_id": 73,
-                        "status": "pending",
+                        "memory_id": "mem-73",
+                        "memory_class": "raw",
+                        "status": "stored_raw",
                         "domain": "Gen",
                         "title": "Imported knowledge",
                         "tags": ["intake"],
@@ -180,23 +189,12 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
                 self.memory_service = IntakeMemoryService()
                 self.broker = IntakeBroker()
 
-            def learn_memory_proposal(self, proposal_id):
-                captured["learn_calls"].append(proposal_id)
-                return {
-                    "proposal_id": proposal_id,
-                    "status": "approved",
-                    "memory_id": "mem-73",
-                    "approved_class": "tested",
-                    "decision": "approve",
-                    "decision_reason": "explicit testable knowledge passed",
-                }
-
         self_test = self
         sent = self.run_client([
             {
                 "op": "login",
-                "username": ADMIN_USER,
-                "password": ADMIN_PASSWORD,
+                "username": TRAINER_USER,
+                "password": TRAINER_PASSWORD,
             },
             {
                 "op": "intake_commit",
@@ -205,6 +203,10 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
                     "domain": "Gen",
                     "title": "Imported knowledge",
                     "tags": ["intake"],
+                    "intake_context": [{
+                        "question": "What is this material?",
+                        "answer": "A test source.",
+                    }],
                 },
             },
         ], mind=IntakeMind)
@@ -224,23 +226,21 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
         self.assertEqual(
             captured.get("memory_client_request"),
             {
-                "actor": "intake",
-                "role": "tool",
+                "actor": TRAINER_USER,
+                "role": "trainer",
                 "domain": "Gen",
             },
         )
         self.assertEqual(len(captured["broker_calls"]), 1)
-        self.assertEqual(captured["learn_calls"], [73])
-
-        self.assertEqual(result[0]["proposal_id"], 73)
-        self.assertEqual(result[0]["status"], "approved")
-        self.assertEqual(result[0]["memory_id"], "mem-73")
-        self.assertEqual(result[0]["memory_class"], "tested")
-        self.assertEqual(result[0]["decision"], "approve")
         self.assertEqual(
-            result[0]["decision_reason"],
-            "explicit testable knowledge passed",
+            captured["broker_calls"][0]["args"]["proposal"]["intake_context"][0]["answer"],
+            "A test source.",
         )
+
+        self.assertEqual(result[0]["memory_id"], "mem-73")
+        self.assertEqual(result[0]["status"], "stored_raw")
+        self.assertEqual(result[0]["memory_id"], "mem-73")
+        self.assertEqual(result[0]["memory_class"], "raw")
         self.assertEqual(result[0]["domain"], "Gen")
         self.assertEqual(result[0]["title"], "Imported knowledge")
         self.assertEqual(result[0]["tags"], ["intake"])

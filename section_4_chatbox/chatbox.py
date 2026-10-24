@@ -10,7 +10,7 @@ The chatbox does three things:
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List
 
 
 class Chatbox:
@@ -37,6 +37,38 @@ class Chatbox:
         if not answer and default is not None:
             return default
         return answer
+
+    def render_for_review(
+        self,
+        *,
+        objective: str,
+        communication_intent: Dict[str, Any],
+        verified_evidence: List[Any],
+        request_model: Callable[[List[Dict[str, str]]], Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Draft user-facing language through Chat's model capability."""
+        import json
+
+        return request_model([
+            {
+                "role": "system",
+                "content": (
+                    "Render a clear, concise response for the human from the "
+                    "objective and verified evidence. Do not invent actions, "
+                    "artifacts, test results, or certainty. Preserve failures "
+                    "and limitations. This is only a draft for Central Mind "
+                    "review; do not claim approval."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "objective": objective,
+                    "communication_intent": communication_intent,
+                    "verified_evidence": verified_evidence,
+                }, ensure_ascii=False, default=str),
+            },
+        ])
 
     def notify(self, message: str) -> None:
         print()

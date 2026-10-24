@@ -31,6 +31,7 @@
     <main class="chat-window">
       <div class="chat-topbar">
         <div class="chat-topic">New chat <span class="dim">· general</span></div>
+        <div class="chat-project-context" id="active-project-context">No active project</div>
       </div>
       <div class="chat-body">
         <div class="chat-thread" id="chat-thread">
@@ -42,9 +43,14 @@
       </div>
       <div class="intent-bar" id="intent-bar"></div>
       <div class="input-bar">
+        <input id="chat-file-picker" type="file" multiple hidden />
+        <button class="input-action-btn" id="chat-attach" type="button" aria-label="Attach files" title="Attach files">＋</button>
         <textarea id="input" placeholder="Type a message..." rows="1"></textarea>
+        <button class="input-action-btn" id="chat-mic" type="button" aria-label="Start speech-to-text" title="Start speech-to-text">🎙</button>
         <button class="send-btn" id="send">Send ↑</button>
       </div>
+      <div class="input-attachments" id="input-attachments" aria-live="polite"></div>
+      <div class="input-status" id="input-status" role="status" aria-live="polite"></div>
     </main>
   </div>
   <script type="module" src="ui/chat/shell/shell.js"></script>

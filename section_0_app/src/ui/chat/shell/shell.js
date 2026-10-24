@@ -30,10 +30,14 @@ import {
 import {
   openIntake,
 } from "../memory_intake/memory_intake.js";
+import {
+  createAccountControls,
+} from "../../shared/account_controls/account_controls.js";
 
 const conversation = createConversation();
 const intent = createChatIntent();
 const topBar = createChatTopBar();
+createAccountControls({ onOpenIntake: openIntake });
 
 const leftPanel = createChatLeftPanel({
   conversation,
@@ -46,14 +50,21 @@ let pendingTurn = null;
 const chatInput = createChatInput({
   getIntent: intent.getIntent,
 
-  onSend({ text, intent: selectedIntent }) {
-    conversation.appendMessage("user", text);
+  onSend({ text, intent: selectedIntent, attachments, attachmentNames }) {
+    conversation.appendMessage("user", text, { attachmentNames });
 
     pendingTurn = send(
       text,
       selectedIntent,
       {
+        attachments,
         chat_id: conversation.getChatId(),
+        context: {
+          active_window: {
+            kind: "regular",
+            surface: "chat",
+          },
+        },
       },
     );
     chatInput.setBusy(true);
@@ -69,6 +80,10 @@ onAuthStateChange((state) => {
 });
 
 onMessage((msg) => {
+  if (msg.op === "shared_context") {
+    topBar.setActiveProject(msg.active_project || null);
+    return;
+  }
   if (msg.op === "turn_started" && msg.request_id === pendingTurn) {
     conversation.setChatId(msg.chat_id);
     return;

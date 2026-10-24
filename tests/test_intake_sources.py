@@ -1,7 +1,8 @@
 import json
+import hashlib
 from types import SimpleNamespace
 import pytest
-from section_8_tools.intake.intake import IntakePropose, MAX_CONTENT_BYTES
+from section_8_tools.intake.intake import IntakePropose
 
 
 def test_import_text_preserves_entire_source_and_uses_capability_routing(tmp_path):
@@ -18,6 +19,7 @@ def test_import_text_preserves_entire_source_and_uses_capability_routing(tmp_pat
     assert proposal['content'] == content
     assert len(proposal['preview']) == 500
     assert proposal['content_bytes'] == len(content.encode())
+    assert proposal['intake_questions'][0].lower().startswith("what is the nature")
     assert calls == [('general', 'reason')]
     assert not list(tmp_path.iterdir()), 'proposal preparation must not write global pending state'
 
@@ -32,18 +34,43 @@ def test_external_folder_upload_preserves_provenance_without_reading_host_paths(
     result = tool.call(args)
     assert result['ok']
     proposal = result['data']['proposal']
-    assert 'Training text' in proposal['content'] and 'Other text' in proposal['content']
+    expected_content = (
+        '----- /external/lesson.txt -----\nTraining text\n\n'
+        '----- second.md -----\nOther text'
+    )
+    assert proposal['content'] == expected_content
     assert len(proposal['source_files']) == 2
     assert len(proposal['source_files'][0]['sha256']) == 64
+    assert proposal['content_bytes'] == len(expected_content.encode('utf-8'))
+    assert proposal['source_sha256'] == hashlib.sha256(
+        expected_content.encode('utf-8')
+    ).hexdigest()
+
+
+def test_large_text_and_more_than_fifty_files_are_accepted(tmp_path):
+    large_content = 'a' * (512 * 1024 + 1)
+    large_result = IntakePropose(tmp_path, None).call({
+        'source': {'kind': 'text', 'content': large_content},
+    })
+    assert large_result['ok']
+    assert large_result['data']['proposal']['content'] == large_content
+
+    files = [
+        {'name': f'lesson-{index}.txt', 'content': f'lesson {index}'}
+        for index in range(51)
+    ]
+    folder_result = IntakePropose(tmp_path, None).call({
+        'source': {'kind': 'folder', 'name': 'training', 'files': files},
+    })
+    assert folder_result['ok']
+    assert len(folder_result['data']['proposal']['source_files']) == 51
 
 
 @pytest.mark.parametrize('source', [
     {'kind': 'file', 'content': 'binary\x00'},
     {'kind': 'text', 'content': ''},
-    {'kind': 'text', 'content': 'a' * (MAX_CONTENT_BYTES + 1)},
-    {'kind': 'folder', 'files': [{'content': 'x'}] * 51},
 ])
-def test_binary_empty_and_oversized_sources_are_rejected(tmp_path, source):
+def test_binary_and_empty_sources_are_rejected(tmp_path, source):
     assert not IntakePropose(tmp_path, None).call({'source': source})['ok']
 
 

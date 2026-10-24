@@ -117,7 +117,6 @@ function showTextPicker(kind) {
   document.getElementById("intake-source-submit").onclick = () => {
     const value = document.getElementById("intake-source").value.trim();
     if (!value) return;
-    if (new TextEncoder().encode(value).length > 512 * 1024) return showError("Text exceeds 512 KiB.");
     if (url && !/^https?:\/\//i.test(value)) return showError("Enter a complete HTTP or HTTPS URL.");
     const name = url ? value : (document.getElementById("intake-source-name").value.trim() || "Pasted text");
     proposeSource({ source: { kind, name, ...(url ? {} : { content: value }) } });
@@ -128,28 +127,68 @@ function showUploadPicker(kind) {
   const body = document.getElementById("intake-body");
   body.innerHTML = `<div class="intake-section"><label class="intake-label" for="intake-upload">${kind === "folder" ? "Choose a folder" : "Choose a file on disk"}</label>
     <input id="intake-upload" type="file" ${kind === "folder" ? "webkitdirectory multiple" : ""} />
-    <div class="intake-hint">UTF-8 text, code, Markdown, JSON, CSV or similar text sources. Up to 50 files and 512 KiB total. Images, videos and binary documents require extraction adapters.</div>
+    <div class="intake-hint">Text, PDF (including scanned pages), DOCX, PPTX, XLSX, images and screenshots, and videos are read locally before Central Mind reviews them.</div>
     </div><div class="intake-footer"><button id="intake-upload-back" class="intake-btn">Back</button><button id="intake-upload-submit" class="intake-btn primary">Read and propose</button></div>`;
   document.getElementById("intake-upload-back").onclick = showSourceScreen;
   document.getElementById("intake-upload-submit").onclick = async () => {
     const files = Array.from(document.getElementById("intake-upload").files || []);
     if (!files.length) return;
-    if (files.length > 50 || files.reduce((total, file) => total + file.size, 0) > 512 * 1024) return showError("Choose at most 50 files with a combined size of 512 KiB.");
     const submit = document.getElementById("intake-upload-submit");
     submit.disabled = true;
     try {
       const entries = [];
       for (const file of files) {
-        const content = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
-        if (content.includes("\0")) throw new Error("Binary files are not supported. Select UTF-8 text sources.");
-        entries.push({ name: file.webkitRelativePath || file.name, content });
+        const name = file.webkitRelativePath || file.name;
+        entries.push(await readUpload(file, name));
       }
       const name = kind === "folder" ? entries[0].name.split("/")[0] : files[0].name;
-      proposeSource({ source: { kind, name, ...(kind === "folder" ? { files: entries } : { content: entries[0].content }) } });
+      proposeSource({
+        source: {
+          kind,
+          name,
+          ...(kind === "folder" ? { files: entries } : entries[0]),
+        },
+      });
     } catch (error) {
       showError(error.message || "Could not read source files.");
     }
   };
+}
+
+async function readUpload(file, name) {
+  const extension = name.split(".").pop().toLowerCase();
+  const textExtensions = new Set([
+    "c", "cc", "cpp", "css", "csv", "go", "h", "html", "htm", "ini",
+    "java", "js", "jsx", "json", "log", "md", "mdx", "py", "r", "rs",
+    "sh", "sql", "svg", "toml", "ts", "tsx", "txt", "xml", "yaml", "yml",
+  ]);
+  const isText = file.type.startsWith("text/")
+    || ["application/json", "application/xml"].includes(file.type)
+    || textExtensions.has(extension);
+
+  if (isText) {
+    try {
+      const content = await file.text();
+      if (content.includes("\0")) {
+        throw new Error("contains binary data.");
+      }
+      return { name, content };
+    } catch (error) {
+      throw new Error(`Could not read "${name}": ${error.message || "file access failed."}`);
+    }
+  }
+
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    return { name, data_base64: btoa(binary) };
+  } catch (error) {
+    throw new Error(`Could not read "${name}": ${error.message || "file access failed."}`);
+  }
 }
 
 function propose(path) { proposeSource({ path }); }
@@ -168,6 +207,9 @@ function showProposalScreen(p) {
 
   const domains = ["Cod", "Img", "Vid", "Trd", "Gen", "Mind", "Chr", "Cap"];
   const kinds = ["fact", "language", "formula", "pattern", "observation", "theory"];
+  const questions = Array.isArray(p.intake_questions) && p.intake_questions.length
+    ? p.intake_questions.slice(0, 4)
+    : ["What is the nature of this material, and what should Central Mind understand it to be?"];
 
   body.innerHTML = `
     <div class="intake-section">
@@ -182,7 +224,7 @@ function showProposalScreen(p) {
 
       <div class="intake-field">
         <span class="intake-key">Memory class</span>
-        <span class="intake-value">${p.memory_class}</span>
+        <span class="intake-value">Raw — unverified material for Central Mind analysis</span>
       </div>
 
       <div class="intake-field">
@@ -210,10 +252,21 @@ function showProposalScreen(p) {
       </div>
     </div>
 
+    <div class="intake-section">
+      <div class="intake-label">Central Mind needs context</div>
+      <div class="intake-hint">Your answers help Central Mind interpret this material and decide what analysis or testing is relevant. They are stored with it as Trainer-provided context, not as verified facts. The first answer is required.</div>
+      ${questions.map((question, index) => `
+        <div class="intake-field">
+          <label class="intake-key" for="intake-context-${index}">${escapeHtml(question)}</label>
+          <textarea id="intake-context-${index}" rows="2" ${index === 0 ? "required" : ""} placeholder="Your context${index === 0 ? " (required)" : " (optional)"}"></textarea>
+        </div>
+      `).join("")}
+    </div>
+
     <div class="intake-footer">
       <button id="intake-back-2" class="intake-btn">Back</button>
       <button id="intake-cancel-2" class="intake-btn">Cancel</button>
-      <button id="intake-store" class="intake-btn primary">Submit for review</button>
+      <button id="intake-store" class="intake-btn primary">Store as Raw Memory</button>
     </div>
   `;
 
@@ -228,6 +281,17 @@ function storeProposal(original) {
   const title = document.getElementById("intake-title-input").value.trim();
   const tagsRaw = document.getElementById("intake-tags-input").value;
   const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+  const questions = Array.isArray(original.intake_questions)
+    ? original.intake_questions.slice(0, 4)
+    : ["What is the nature of this material, and what should Central Mind understand it to be?"];
+  const intakeContext = questions.map((question, index) => ({
+    question,
+    answer: document.getElementById(`intake-context-${index}`).value.trim(),
+  })).filter(item => item.answer);
+  if (!intakeContext.length || !intakeContext[0].answer) {
+    document.getElementById("intake-context-0").focus();
+    return;
+  }
 
   const proposal = {
     memory_class: "raw",
@@ -237,6 +301,7 @@ function storeProposal(original) {
     tags,
     content: original.content || original.preview || "",
     source_path: original.source_path,
+    intake_context: intakeContext,
     originator: [{ type: "trainer", name: "user" }],
   };
 
@@ -256,15 +321,15 @@ function showSubmittedScreen(s) {
   const body = document.getElementById("intake-body");
   body.innerHTML = `
     <div class="intake-section">
-      <div class="intake-label">Intake evaluation result</div>
-      <div class="intake-hint">${escapeHtml(s.memory_id ? "The evaluated source produced a memory entry." : "No permanent memory entry was created. " + (s.decision_reason || "The proposal remains subject to evaluation."))}</div>
+      <div class="intake-label">Intake stored</div>
+      <div class="intake-hint">${escapeHtml(s.memory_id ? "Stored as Raw Memory. Central Mind can recall it for analysis and testing; it remains unverified until evaluated." : "No memory entry was created.")}</div>
       <div class="intake-field">
-        <span class="intake-key">Proposal ID</span>
-        <span class="intake-value">${escapeHtml(s.proposal_id || "?")}</span>
+        <span class="intake-key">Memory ID</span>
+        <span class="intake-value">${escapeHtml(s.memory_id || "?")}</span>
       </div>
       <div class="intake-field">
         <span class="intake-key">Status</span>
-        <span class="intake-value">${escapeHtml(s.status || "pending")}</span>
+        <span class="intake-value">${escapeHtml(s.status || "unknown")}</span>
       </div>
       <div class="intake-field">
         <span class="intake-key">Domain</span>

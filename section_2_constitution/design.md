@@ -130,6 +130,24 @@ It must not become a collection of hard-coded implementations for individual
 domains, tools, models or future capabilities.
 
 
+## 2.1.1 Three independent Central Mind loops
+
+Central Mind separates its activity into three bounded loops:
+
+- **Regular operation** receives requests, coordinates domains, verifies
+  results and returns a response.
+- **Self-assessment** reviews operational evidence and may submit audited
+  proposals for Administrator review; it cannot modify itself.
+- **Feature expansion** evaluates demonstrated capability gaps and submits
+  proposals; it cannot install capabilities or grant authority.
+
+Each loop owns its implementation in a separate package. Regular operation
+may dispatch work to the other loops through their public interfaces, but
+does not contain their decision logic. Questionnaire is an intentionally
+shared service; other shared services are explicit dependencies, not shared
+activity ownership.
+
+
 ## 2.2 Components are discovered, not hard-coded
 
 The system must discover organs from trusted component roots and manifests.
@@ -1295,26 +1313,28 @@ Intake may:
 - inspect submitted material;
 - structure it;
 - identify a target domain;
-- create a knowledge proposal.
+- ask the Trainer what the material is, how it should be interpreted, and
+  what scope, assumptions or limitations matter;
+- store the source and Trainer context as Raw Memory.
 
-It does not decide that its own submission is true.
+Raw Memory is unverified source material, not an assertion that the material
+is true. Central Mind owns its recall and decides when to route it for analysis
+or testing. Domains do not own the shared Raw Memory collection.
 
 
 ## 14.2 Canonical learning flow
 
-The intended learning flow is:
+The Trainer Intake flow is:
 
     source/material
         -> Intake
-        -> guarded intake operation
-        -> MemoryClient proposal
-        -> Memory Service pending proposal
-        -> Central Mind receives proposal
-        -> domain evaluator
-        -> evidence/test result
-        -> Central Mind learning decision
-        -> Memory Service commit/reject
-        -> provenance/history
+        -> Central Mind presents relevant Trainer questions
+        -> authenticated Trainer supplies context
+        -> Memory Service stores source and context as Raw Memory
+        -> Central Mind recalls relevant Raw Memory
+        -> assigned domain analyzes or tests it
+        -> any reusable Tested/Derived learning follows its separate
+           governed proposal and verification lifecycle
 
 
 ## 14.3 Memory is not learning
@@ -1323,6 +1343,10 @@ Recording information alone is not sufficient.
 
 Learning means future behavior, reasoning, recall, scoring or decisions can
 change because validated information became available.
+
+Raw Intake makes unverified material available for Central Mind reasoning,
+analysis and testing. It does not automatically promote the material to Tested
+or Derived Memory.
 
 
 ## 14.4 Behavioral learning
@@ -1552,9 +1576,23 @@ Chatbox may manage:
 - notifications;
 - tool status;
 - conversational state;
+- language rendering of a response draft requested by Central Mind;
 - future lexicon;
 - future topic continuity;
 - future learned associations.
+
+Chat receives the user's message and Chat ID from the application path. The
+application supplies current-turn UI observations separately; Chat transports
+them without selecting a domain or deciding how the task is executed. A
+Chat-rendered draft is returned to Central Mind for review before presentation.
+
+Chat and Coding remain separate components and responsibilities. The Coding
+window may present an independent Chat pane beside the editor, while Chat also
+remains available as its own window. Their current project context is shared
+through Central Mind: Coding reports project selection to Central Mind, which
+exposes that session context to Chat and includes it when reasoning about a new
+turn. Chat does not query or control Coding, and sharing context does not merge
+their interfaces or responsibilities.
 
 
 ## 19.2 Authority separation
@@ -3062,6 +3100,10 @@ Language organs and LLMs may perform linguistic realization.
 
 They are subordinate to the communication objective.
 
+Chat may render the response draft through its language-model capability.
+Central Mind reviews that draft against the task and verified evidence and
+withholds it from the UI unless the review approves it.
+
 This allows the same underlying concept to be expressed differently without
 requiring separate conceptual knowledge for every language or audience.
 
@@ -3652,6 +3694,8 @@ The validated V1 implementation includes:
 - bounded temporary Scorer evidence rather than a permanent evidence ledger;
 - Section 3 Memory as the sole permanent reusable knowledge/experience system;
 - authenticated Trainer Intake as the sole permitted origin of Raw Memory;
+- Trainer context stored with Raw Intake and Central Mind prioritizing relevant
+  Raw Memory for recall and passing it to assigned domains as unverified evidence;
 - explicit denial of Central Mind proposal approval creating Raw Memory;
 - rejection of untestable system proposals rather than downgrading them to Raw;
 - Tested and Derived governed system-learning paths;

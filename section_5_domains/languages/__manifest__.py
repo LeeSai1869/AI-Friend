@@ -16,6 +16,28 @@ ORGAN = {
     "icon": "🌐",
     "window": "chat",
     "capabilities": ["learn", "read", "translate", "write", "detect"],
+    "capability_descriptions": {
+        "learn": (
+            "Request language-learning intake for a supplied language source; "
+            "does not inspect application projects or source files."
+        ),
+        "read": (
+            "Interpret supplied natural-language text and explain its meaning, "
+            "idioms, grammar, or language-specific features. This is not "
+            "project, source-code, or workspace file inspection."
+        ),
+        "translate": (
+            "Translate supplied text between natural languages; does not "
+            "inspect or modify project files."
+        ),
+        "write": (
+            "Compose or correct text in a requested natural language; does "
+            "not write application source code or project files."
+        ),
+        "detect": (
+            "Identify the natural language or script of supplied text."
+        ),
+    },
 
     # Rosters cite the registry. Order is a default;
     # memory evidence reorders it at runtime.

@@ -51,10 +51,21 @@ export function createConversation() {
 
     const body = document.createElement("div");
     body.className = "msg-body";
-    body.textContent = String(text ?? "");
+    body.textContent = String(text ?? "") || (
+      role === "user" && metadata?.attachmentNames?.length
+        ? "Please review the attached file(s)."
+        : ""
+    );
 
     msg.appendChild(roleEl);
     msg.appendChild(body);
+
+    if (role === "user" && Array.isArray(metadata?.attachmentNames) && metadata.attachmentNames.length) {
+      const attachments = document.createElement("div");
+      attachments.className = "msg-attachments";
+      attachments.textContent = `Attachments: ${metadata.attachmentNames.join(", ")}`;
+      msg.appendChild(attachments);
+    }
 
     if (role !== "user" && Array.isArray(metadata?.artifacts) && metadata.artifacts.length) {
       const artifacts = document.createElement("div");

@@ -111,7 +111,11 @@ class ModelRouter:
             profile = entry.get("problem_solving") or {}
             profile_key = {"reason": "multi_step_quality", "plan": "planning_quality",
                            "write": "code_strength", "test": "code_strength", "debug": "code_strength", "answer": "prose_strength"}.get(capability)
-            if profile_key and isinstance(profile, dict):
+            if (
+                profile_key
+                and capability not in resource["task_quality"]
+                and isinstance(profile, dict)
+            ):
                 resource["task_quality"][capability] = profile.get(profile_key, 0)
             resources[key] = resource
         # Memory's current interface returns counts of verified successful uses,

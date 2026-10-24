@@ -23,26 +23,27 @@ The historical/technical checkpoint remains:
 
 Goal:
 AI Friend must launch as a normal macOS application without requiring
-the Trainer to type Terminal commands.
+the Trainer to type Terminal commands. Maintain exactly one discoverable
+installation at `/Applications/AI Friend.app`; builds and safety backups
+must not appear as additional applications.
 
 Required:
 - macOS `.app` bundle;
 - product name `AI Friend`;
 - application icon;
-- convenient Desktop access;
+- one canonical installation in `/Applications`;
+- updates build outside the project tree and preserve runtime data;
 - preserve existing authentication/security architecture.
 
 Completion condition:
 Trainer can open AI Friend from the Desktop like a normal application.
 
 Launcher implementation result:
-- release `AI Friend.app` bundle generated;
-- Desktop `AI Friend.app` launcher created;
-- Desktop launcher resolves to the release application bundle;
-- bundle verification reported PASS at directory level;
-- follow-up defect: expected `Contents/Info.plist` was not found by
-  PlistBuddy and must be investigated later;
-- this follow-up does NOT block Coding V1 bootstrap.
+- the earlier Desktop launcher and in-project release bundle created a
+  second discoverable copy of AI Friend;
+- the updater now builds in a temporary directory, installs only to
+  `/Applications/AI Friend.app`, archives previous versions without an
+  `.app` extension, and removes the known legacy in-project app bundle.
 
 ---
 

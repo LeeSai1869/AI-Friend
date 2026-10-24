@@ -201,10 +201,13 @@ class ChatRuntime:
             attachments=attachment_rows,
             context=context,
         )
+        mind_input = user_text
+        if not mind_input and attachment_rows:
+            mind_input = "Please review the attached file(s) and explain what they contain."
 
         try:
             result = self.mind.process(
-                user_text,
+                mind_input,
                 context=packet,
             )
         except Exception as exc:
@@ -221,10 +224,23 @@ class ChatRuntime:
                 "error": "Central Mind returned a non-mapping result",
             }
 
-        if user_text:
+        if user_text or attachment_rows:
+            attached_names = [
+                str(row.get("name"))
+                for row in attachment_rows
+                if isinstance(row, dict) and row.get("name")
+            ]
+            stored_user_text = user_text
+            if attached_names:
+                attachment_note = "[Attached files: " + ", ".join(attached_names) + "]"
+                stored_user_text = (
+                    f"{stored_user_text}\n{attachment_note}"
+                    if stored_user_text
+                    else attachment_note
+                )
             chat.add_turn(
                 "user",
-                user_text,
+                stored_user_text,
                 action=str(intent or "ask"),
             )
 

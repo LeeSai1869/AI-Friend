@@ -13,6 +13,11 @@ import os
 
 MEMORY_ROOT = (Path(os.environ["AI_FRIEND_STATE_DIR"]).expanduser().resolve() / "memory"
                if os.environ.get("AI_FRIEND_STATE_DIR") else Path(__file__).resolve().parent)
+MEMORY_CLASS_DIRECTORIES = {
+    "raw": "Raw Memory",
+    "tested": "Tested Memory",
+    "derived": "Derived Memory",
+}
 ENTRIES_DIR = MEMORY_ROOT / "entries"
 
 

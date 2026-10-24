@@ -8,7 +8,7 @@ from pathlib import Path
 DEFAULTS = {
     "model_provider": "ollama",
     "model_api_url": "http://localhost:11434",
-    "model_name": "",
+    "model_name": "qwen2.5-coder:7b",
     "model_timeout": 120,
     "tool_budget": 40,
 }

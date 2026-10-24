@@ -60,18 +60,31 @@ class Reasoner:
         if self.memory is None:
             return []
 
-        try:
-            rows = self.memory.recall(
-                query=objective,
-                limit=self.DEFAULT_RECALL_LIMIT,
-            )
-        except Exception:
-            return []
+        raw_rows = self.memory.recall(
+            query=objective,
+            memory_class="raw",
+            limit=self.DEFAULT_RECALL_LIMIT,
+        )
+        rows = self.memory.recall(
+            query=objective,
+            limit=self.DEFAULT_RECALL_LIMIT,
+        )
+
+        combined = []
+        seen = set()
+        for item in list(raw_rows or []) + list(rows or []):
+            if not isinstance(item, dict):
+                continue
+            memory_id = item.get("id")
+            if memory_id and memory_id in seen:
+                continue
+            if memory_id:
+                seen.add(memory_id)
+            combined.append(item)
 
         return [
             dict(item)
-            for item in rows
-            if isinstance(item, dict)
+            for item in combined[:self.DEFAULT_RECALL_LIMIT]
         ]
 
     @staticmethod
@@ -288,11 +301,48 @@ class Reasoner:
         self,
         rows: List[Dict[str, Any]],
         objective: str,
+        *,
+        evidence: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Validate final execution proposals against trusted Inventory."""
 
         valid: List[Dict[str, Any]] = []
         known_ids = set()
+        consulted_evidence = {
+            (
+                str(item.get("source") or "").strip(),
+                str((item.get("metadata") or {}).get("capability") or "").strip(),
+            )
+            for item in (evidence or [])
+            if isinstance(item, dict)
+            and isinstance(item.get("metadata"), dict)
+        }
+        evidence_step_ids = set()
+        for index, row in enumerate(rows or []):
+            if not isinstance(row, dict) or row.get("kind", "domain") != "domain":
+                continue
+
+            component = str(row.get("component") or "").strip()
+            capability = str(row.get("capability") or "").strip()
+            info = getattr(
+                self.inventory,
+                "get",
+                lambda _name: None,
+            )(component) if self.inventory is not None else None
+            manifest = getattr(info, "manifest", {}) or {}
+            declarations = (
+                manifest.get("evidence_capabilities", {})
+                if isinstance(manifest, dict)
+                else {}
+            )
+            if (
+                isinstance(declarations, dict)
+                and capability in declarations
+                and (component, capability) in consulted_evidence
+            ):
+                evidence_step_ids.add(str(
+                    row.get("step_id") or f"step_{index + 1}"
+                ).strip())
 
         for index, row in enumerate(rows or []):
             if not isinstance(row, dict):
@@ -363,6 +413,11 @@ class Reasoner:
             dependencies = self._strings(
                 row.get("depends_on")
             )
+            dependencies = [
+                dependency
+                for dependency in dependencies
+                if dependency not in evidence_step_ids
+            ]
 
             # Dependencies may only point backward to already accepted steps.
             if any(
@@ -428,10 +483,68 @@ class Reasoner:
         if not isinstance(proposed, list):
             proposed = []
 
+        proposed = [item for item in proposed if isinstance(item, dict)]
+
+        def without_previous_results(items):
+            previous = {
+                (
+                    str(result.get("component") or "").strip().casefold(),
+                    str(result.get("capability") or "").strip().casefold(),
+                    str(result.get("subject") or "").strip().casefold(),
+                )
+                for result in state.investigation_results
+                if isinstance(result, dict)
+            }
+            return [
+                item
+                for item in items
+                if (
+                    str(item.get("component") or "").strip().casefold(),
+                    str(item.get("capability") or "").strip().casefold(),
+                    str(item.get("subject") or "").strip().casefold(),
+                ) not in previous
+            ]
+
         partition = self.discovery.trusted_consultations(
-            proposed,
+            without_previous_results(proposed),
             already_consulted=state.consulted_components,
         )
+
+        if not partition.get("trusted") and state.missing_information:
+            unresolved = ", ".join(state.missing_information[:8])
+            objective = state.objective[:2000]
+            evidence_capabilities = [
+                row
+                for row in self._semantic_catalog()
+                if row.get("purpose") == "evidence"
+                and isinstance(row.get("metadata"), dict)
+                and row["metadata"].get("read_only") is True
+            ][:state.max_consultations]
+            fallback = [
+                {
+                    "component": row["component"],
+                    "capability": row["capability"],
+                    "subject": state.missing_information[0],
+                    "question": (
+                        "For the user's objective, provide any relevant "
+                        "trusted evidence this declared read-only capability "
+                        "can supply. Do not execute the requested task. "
+                        f"Objective: {objective}. "
+                        f"Unresolved information: {unresolved}."
+                    ),
+                    "rationale": [
+                        "A material information need remains unresolved and "
+                        "the model did not propose a trusted consultation."
+                    ],
+                }
+                for row in evidence_capabilities
+            ]
+            fallback_partition = self.discovery.trusted_consultations(
+                without_previous_results(fallback),
+                already_consulted=state.consulted_components,
+            )
+            partition["trusted"].extend(fallback_partition["trusted"])
+            partition["rejected"].extend(fallback_partition["rejected"])
 
         for rejected in partition.get("rejected", []):
             reason = str(
@@ -496,9 +609,28 @@ class Reasoner:
         if not isinstance(needs, list):
             needs = []
 
+        evidence = state.evidence_payload()
+        evidence_subjects = {
+            " ".join(str(item.get("subject") or "").split()).casefold():
+                str(item.get("subject") or "").strip()
+            for item in evidence
+            if isinstance(item, dict) and str(item.get("subject") or "").strip()
+        }
+        normalized_needs = []
+        for item in needs:
+            if not isinstance(item, dict):
+                continue
+            need = dict(item)
+            subject = " ".join(
+                str(need.get("subject") or "").split()
+            ).casefold()
+            if subject in evidence_subjects:
+                need["subject"] = evidence_subjects[subject]
+            normalized_needs.append(need)
+
         unresolved = self.discovery.unresolved_material_needs(
-            needs,
-            state.evidence_payload(),
+            normalized_needs,
+            evidence,
         )
 
         if not unresolved:
@@ -530,6 +662,23 @@ class Reasoner:
             if attribute in unresolved_subjects:
                 questions.append(dict(item))
 
+        asked_attributes = {
+            str(item.get("attribute") or "").strip()
+            for item in questions
+        }
+        for item in unresolved:
+            subject = str(item.get("subject") or "").strip()
+            if subject and subject not in asked_attributes:
+                questions.append({
+                    "attribute": subject,
+                    "question": (
+                        f"I don't have enough trusted information about "
+                        f"{subject}. Could you clarify it?"
+                    ),
+                    "options": [],
+                    "default": None,
+                })
+
         state.missing_information = sorted(
             subject
             for subject in unresolved_subjects
@@ -552,12 +701,15 @@ class Reasoner:
         self,
         state: ReasoningState,
     ) -> CognitivePlan:
+        self.last_evidence = state.evidence_payload()
         steps = []
 
-        for row in self._validate_steps(
+        validated = self._validate_steps(
             state.candidate_steps,
             state.objective,
-        ):
+            evidence=state.evidence_payload(),
+        )
+        for row in validated:
             steps.append(
                 CognitiveStep(
                     step_id=row["step_id"],
@@ -618,13 +770,9 @@ class Reasoner:
             else {}
         )
 
-        recalled = self._recall(text) if text else []
-
         state = ReasoningState(
             objective=text,
             supplied_context=supplied_context,
-            recalled_memory=recalled,
-            memory_ids=self._memory_ids(recalled),
             max_cycles=self.DEFAULT_MAX_CYCLES,
             max_consultations=self.DEFAULT_MAX_CONSULTATIONS,
         )
@@ -640,6 +788,18 @@ class Reasoner:
             state.should_clarify = True
             state.rationale.append("the objective is empty")
             return self._to_plan(state)
+
+        try:
+            state.recalled_memory = self._recall(text)
+        except Exception as exc:
+            state.reasoning_error = (
+                f"Central Mind memory recall failed: {exc}"
+            )
+            state.rationale.append(
+                "reasoning stopped because shared Memory could not be checked"
+            )
+            return self._to_plan(state)
+        state.memory_ids = self._memory_ids(state.recalled_memory)
 
         prior: Optional[Dict[str, Any]] = None
 
@@ -691,6 +851,7 @@ class Reasoner:
             validated = self._validate_steps(
                 state.candidate_steps,
                 state.objective,
+                evidence=state.evidence_payload(),
             )
 
             if validated:
