@@ -469,6 +469,68 @@ class Reasoner:
     # Investigation
     # ------------------------------------------------------------------
 
+    def _gather_ambient_evidence(self, state: ReasoningState) -> None:
+        """Gather evidence that domains declare as ambient.
+
+        A domain marks a read-only evidence capability ``ambient`` when it is
+        cheap and relevant to every turn (for example live project state).
+        Central Mind does not interpret the evidence; it only ensures the
+        understanding step never has to guess at it.
+        """
+        if not self.consultation.available():
+            return
+
+        proposals = []
+        for row in self._semantic_catalog():
+            metadata = row.get("metadata")
+            if (
+                row.get("purpose") == "evidence"
+                and isinstance(metadata, dict)
+                and metadata.get("read_only") is True
+                and metadata.get("ambient") is True
+            ):
+                proposals.append({
+                    "component": row["component"],
+                    "capability": row["capability"],
+                    "subject": row["capability"],
+                    "question": (
+                        "Provide your current read-only ambient evidence for "
+                        "this turn. Do not execute the requested task. "
+                        "Objective: " + state.objective[:1000]
+                    ),
+                    "rationale": ["the domain declares this evidence as ambient"],
+                })
+
+        partition = self.discovery.trusted_consultations(
+            proposals,
+            already_consulted=[],
+        )
+
+        for item in partition.get("trusted", []):
+            result = self.consultation.request(
+                component=item["component"],
+                capability=item["capability"],
+                subject=item.get("subject", ""),
+                question=item["question"],
+                reasoning_state=state.as_dict(),
+                context=state.supplied_context,
+            )
+            state.investigation_results.append(dict(result))
+            if not result.get("ok"):
+                continue
+            state.add_evidence(
+                source_kind="domain",
+                source=item["component"],
+                subject=item.get("subject") or item["capability"],
+                value=result.get("evidence"),
+                confidence=1.0,
+                metadata={
+                    "capability": item["capability"],
+                    "read_only_consultation": True,
+                    "ambient": True,
+                },
+            )
+
     def _investigate(
         self,
         state: ReasoningState,
@@ -800,6 +862,8 @@ class Reasoner:
             )
             return self._to_plan(state)
         state.memory_ids = self._memory_ids(state.recalled_memory)
+
+        self._gather_ambient_evidence(state)
 
         prior: Optional[Dict[str, Any]] = None
 
