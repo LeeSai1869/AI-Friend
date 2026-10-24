@@ -83,6 +83,7 @@ class Chatbox:
                     "model": draft.get("model"),
                     "evidence_count": len(verified_evidence),
                     "evidence_subjects": subjects,
+                    "evidence": json.dumps(verified_evidence, ensure_ascii=False, default=str)[:3000],
                     "draft": str(draft.get("output", ""))[:800],
                 }
                 with (directory / "chat_render.jsonl").open("a", encoding="utf-8") as handle:

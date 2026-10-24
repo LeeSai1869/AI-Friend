@@ -191,6 +191,10 @@ class ChatRuntime:
                 "domain": result.get("domain"),
                 "capability": result.get("capability"),
             }
+            evidence = getattr(getattr(self.mind, "reasoner", None), "last_evidence", None)
+            record["reasoning_evidence"] = (
+                json.dumps(evidence, ensure_ascii=False, default=str)[:3000] if evidence else None
+            )
             directory = self.workspace / "debug"
             directory.mkdir(parents=True, exist_ok=True)
             with (directory / "chat_turns.jsonl").open("a", encoding="utf-8") as handle:
