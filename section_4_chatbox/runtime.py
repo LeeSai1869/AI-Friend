@@ -224,6 +224,12 @@ class ChatRuntime:
                 "error": "Central Mind returned a non-mapping result",
             }
 
+        review = (result.get("cognition") or {}).get("communication_review") or {}
+        print(
+            f"[chat-turn] status={result.get('status')!r} error={result.get('error')!r} "
+            f"issues={review.get('issues')!r}"
+        )
+
         if user_text or attachment_rows:
             attached_names = [
                 str(row.get("name"))

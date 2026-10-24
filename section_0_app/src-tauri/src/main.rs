@@ -259,6 +259,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
     // "../../section_1_central_mind/**/*" beneath Resources/_up_/_up_.
     // Resolve the packaged project root from the actual bundled layout
     // rather than assuming resource_dir itself is the project root.
+    let is_dev = dev_root.is_some();
     let project_root = if let Some(dev_root) = dev_root {
         dev_root
     } else {
@@ -298,6 +299,11 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
     }
     let support = app.path().home_dir().map_err(|e| e.to_string())?
         .join("Library").join("Application Support").join("AI Friend V1");
+    let state_dir = if is_dev {
+        support.with_file_name("AI Friend V1 Dev").join("state")
+    } else {
+        support.join("state")
+    };
     let installed_python = support.join("runtime").join("venv").join("bin").join("python3");
     let local_python = project_root.join(".venv").join("bin").join("python3");
     let python = if local_python.is_file() {
@@ -326,7 +332,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
                     .as_nanos()
             ),
         ])
-        .env("AI_FRIEND_STATE_DIR", support.join("state"))
+        .env("AI_FRIEND_STATE_DIR", state_dir)
         .current_dir(project_root)
         .set_process_group(true);
 

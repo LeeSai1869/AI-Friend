@@ -49,7 +49,7 @@ class Chatbox:
         """Draft user-facing language through Chat's model capability."""
         import json
 
-        return request_model([
+        draft = request_model([
             {
                 "role": "system",
                 "content": (
@@ -69,6 +69,14 @@ class Chatbox:
                 }, ensure_ascii=False, default=str),
             },
         ])
+        if isinstance(draft, dict):
+            subjects = [e.get("subject") for e in verified_evidence if isinstance(e, dict)][:8]
+            print(
+                f"[chat-render] ok={draft.get('ok')} model={draft.get('model')} "
+                f"evidence={len(verified_evidence)} subjects={subjects} "
+                f"draft={str(draft.get('output', ''))[:600]!r}"
+            )
+        return draft
 
     def notify(self, message: str) -> None:
         print()
