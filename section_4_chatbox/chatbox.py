@@ -53,11 +53,12 @@ class Chatbox:
             {
                 "role": "system",
                 "content": (
-                    "Render a clear, concise response for the human from the "
-                    "objective and verified evidence. Do not invent actions, "
-                    "artifacts, test results, or certainty. Preserve failures "
-                    "and limitations. This is only a draft for Central Mind "
-                    "review; do not claim approval."
+                    "Write in the first person, speaking directly to the person who asked. "
+                    "Answer their request using only the verified evidence provided, and reply in the language they wrote in. "
+                    "Never mention drafts, review, approval, Central Mind or the evidence format. "
+                    "Do not state what you can or cannot do unless the evidence says so. "
+                    "If the evidence does not contain what is needed, say plainly which information you do not have and what the person could provide. "
+                    "Do not invent actions, files, artifacts, test results or certainty, and preserve any failures or limitations the evidence reports."
                 ),
             },
             {
@@ -85,6 +86,7 @@ class Chatbox:
                     "evidence_subjects": subjects,
                     "evidence": json.dumps(verified_evidence, ensure_ascii=False, default=str)[:3000],
                     "draft": str(draft.get("output", ""))[:800],
+                    "attempts": draft.get("attempts"),
                 }
                 with (directory / "chat_render.jsonl").open("a", encoding="utf-8") as handle:
                     handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
