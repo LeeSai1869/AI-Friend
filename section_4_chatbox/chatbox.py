@@ -71,11 +71,24 @@ class Chatbox:
         ])
         if isinstance(draft, dict):
             subjects = [e.get("subject") for e in verified_evidence if isinstance(e, dict)][:8]
-            print(
-                f"[chat-render] ok={draft.get('ok')} model={draft.get('model')} "
-                f"evidence={len(verified_evidence)} subjects={subjects} "
-                f"draft={str(draft.get('output', ''))[:600]!r}"
-            )
+            try:
+                import os
+                import time
+                from pathlib import Path
+                directory = Path(os.environ.get("AI_FRIEND_STATE_DIR") or ".").expanduser() / "debug"
+                directory.mkdir(parents=True, exist_ok=True)
+                record = {
+                    "ts": round(time.time(), 3),
+                    "ok": draft.get("ok"),
+                    "model": draft.get("model"),
+                    "evidence_count": len(verified_evidence),
+                    "evidence_subjects": subjects,
+                    "draft": str(draft.get("output", ""))[:800],
+                }
+                with (directory / "chat_render.jsonl").open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+            except Exception as exc:
+                print(f"[chat-debug] could not write render record: {exc}")
         return draft
 
     def notify(self, message: str) -> None:

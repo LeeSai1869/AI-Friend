@@ -171,6 +171,33 @@ class ChatRuntime:
             ],
         }
 
+    def _debug_turn(self, user_text: str, result: Dict[str, Any]) -> None:
+        """Append one compact diagnostic record per turn to the local state dir."""
+        import json
+        import time
+        try:
+            cognition = result.get("cognition") or {}
+            review = cognition.get("communication_review") or {}
+            record = {
+                "ts": round(time.time(), 3),
+                "user": user_text[:200],
+                "status": result.get("status"),
+                "error": result.get("error"),
+                "disposition": cognition.get("disposition"),
+                "plan": json.dumps(cognition.get("plan") or {}, ensure_ascii=False, default=str)[:2500],
+                "review_issues": review.get("issues"),
+                "audit_model": review.get("audit_model"),
+                "render_model": result.get("source_model"),
+                "domain": result.get("domain"),
+                "capability": result.get("capability"),
+            }
+            directory = self.workspace / "debug"
+            directory.mkdir(parents=True, exist_ok=True)
+            with (directory / "chat_turns.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        except Exception as exc:
+            print(f"[chat-debug] could not write turn record: {exc}")
+
     def respond(
         self,
         text: str,
@@ -224,11 +251,7 @@ class ChatRuntime:
                 "error": "Central Mind returned a non-mapping result",
             }
 
-        review = (result.get("cognition") or {}).get("communication_review") or {}
-        print(
-            f"[chat-turn] status={result.get('status')!r} error={result.get('error')!r} "
-            f"issues={review.get('issues')!r}"
-        )
+        self._debug_turn(user_text, result)
 
         if user_text or attachment_rows:
             attached_names = [
