@@ -1219,6 +1219,9 @@ routing:
     context_tokens: 16384
     think: false
   max_attempts_per_capability: 3
+  generation_by_capability:
+    answer:
+      think: false
   on_model_failure:
   - try_next_in_priority
   - after_all_fail_escalate_to_trainer

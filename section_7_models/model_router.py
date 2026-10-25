@@ -134,10 +134,10 @@ class ModelRouter:
         started = time.time()
         result = self._fulfill(requirement=requirement, call_fn=call_fn, messages=messages,
                                source_scores=source_scores, max_attempts=max_attempts, **context)
-        self._debug_record(requirement, result, time.time() - started)
+        self._debug_record(requirement, result, time.time() - started, source_scores)
         return result
 
-    def _debug_record(self, requirement, result, elapsed):
+    def _debug_record(self, requirement, result, elapsed, source_scores=None):
         """Append one compact record per model request to the local state debug folder."""
         try:
             import os
@@ -158,6 +158,14 @@ class ModelRouter:
                 "attempts": result.get("attempts"),
                 "output": str(result.get("output", ""))[:700],
             }
+            try:
+                record["ranking"] = [
+                    {"model": c.key, "score": round(c.score, 1), "reasons": list(c.reasons)}
+                    for c in self._candidates(requirement, source_scores)[:4]
+                ]
+            except Exception as exc:
+                record["ranking"] = [{"error": str(exc)[:120]}]
+            record["source_scores"] = dict(source_scores or {})
             with (directory / "model_calls.jsonl").open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
         except Exception:
@@ -187,6 +195,7 @@ class ModelRouter:
             try:
                 resource = dict(candidate.resource)
                 generation = dict(routing.get("structured_generation") or {}) if requirement.get("structured_output") else {}
+                generation.update((routing.get("generation_by_capability") or {}).get(str(requirement.get("capability") or "")) or {})
                 generation.update(resource.get("generation") or {})
                 generation["structured_output"] = requirement.get("structured_output")
                 declared_context = resource.get("context_tokens")
