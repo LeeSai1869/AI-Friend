@@ -327,7 +327,7 @@ def rank_resources(
         )
 
         if quality:
-            score += quality * 30.0
+            score += quality * 100.0
             reasons.append(
                 f"declared quality {quality:.2f}"
             )
@@ -338,6 +338,8 @@ def rank_resources(
             < requirement.minimum_quality
         ):
             continue
+
+        quality_part = score
 
         for trait in requirement.traits:
             if trait in blob:
@@ -397,6 +399,11 @@ def rank_resources(
                     "local-resource preference"
                 )
 
+        # Declared capability quality dominates the ranking. Trait and keyword
+        # matches only break ties, so they cannot outweigh a clearly stronger model.
+        bonus = score - quality_part
+        score = quality_part + max(-10.0, min(10.0, bonus))
+
         learned = learned_scores.get(key)
 
         if isinstance(learned, Mapping):
@@ -412,7 +419,7 @@ def rank_resources(
             learned = 0.0
 
         if learned:
-            score += learned * 40.0
+            score += learned * 10.0
             reasons.append(
                 f"learned evidence {learned:.3f}"
             )
