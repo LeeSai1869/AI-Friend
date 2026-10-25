@@ -58,7 +58,8 @@ class Chatbox:
                     "Never mention drafts, review, approval, Central Mind or the evidence format. "
                     "Do not state what you can or cannot do unless the evidence says so. "
                     "If the evidence does not contain what is needed, say plainly which information you do not have and what the person could provide. "
-                    "Do not invent actions, files, artifacts, test results or certainty, and preserve any failures or limitations the evidence reports."
+                    "Do not invent actions, files, artifacts, test results or certainty, and preserve any failures or limitations the evidence reports. "
+                    "If communication_intent contains reviewer_feedback, correct exactly those problems, or say plainly what you are unsure about."
                 ),
             },
             {

@@ -961,10 +961,48 @@ class CentralMind:
             rendered=rendered,
             evidence=evidence,
         )
+        if not review.get("ok") and review.get("issues"):
+            # One bounded retry: give the renderer the audit's concrete
+            # problems. The draft is still withheld unless a re-audit approves.
+            first_issues = list(review.get("issues") or [])
+            retry = renderer(
+                objective=plan.objective,
+                communication_intent={**step.as_dict(), "reviewer_feedback": first_issues},
+                verified_evidence=evidence,
+                request_model=self._request_chat_render_model,
+            )
+            retried = (
+                str(retry.get("output") or "").strip()
+                if isinstance(retry, dict) and retry.get("ok")
+                else ""
+            )
+            if retried:
+                second = self._review_chat_rendering(
+                    plan=plan,
+                    rendered=retried,
+                    evidence=evidence,
+                )
+                second["first_attempt_issues"] = first_issues
+                if second.get("ok"):
+                    draft, rendered = retry, retried
+                review = second
         if not review.get("ok"):
+            concerns = [
+                str(item).strip()
+                for item in (review.get("issues") or [])
+                if str(item).strip()
+            ]
+            if concerns:
+                message = (
+                    "I could not produce an answer I was able to verify. "
+                    "The audit's concern: " + "; ".join(concerns[:2])[:400]
+                    + " Please rephrase or give me more detail."
+                )
+            else:
+                message = review.get("error") or "Central Mind rejected the Chat draft."
             return {
                 "status": "error",
-                "error": review.get("error") or "Central Mind rejected the Chat draft.",
+                "error": message,
                 "cognition": {
                     "plan": plan.as_dict(),
                     "appraisals": appraisals,
@@ -1016,10 +1054,17 @@ class CentralMind:
                     "role": "system",
                     "content": (
                         "Audit the Chat draft against the objective and "
-                        "verified evidence. Approve only if factual claims are "
-                        "supported and the draft preserves material failures "
-                        "and limitations. Return JSON only: "
-                        '{"approved": true|false, "issues": ["..."]}.'
+                        "verified evidence. Set approved to false only for a "
+                        "blocking problem: a factual claim the evidence does "
+                        "not support, an action, file, result or capability "
+                        "claimed that the evidence does not show, or a material "
+                        "failure or limitation in the evidence that the draft "
+                        "hides or contradicts. Tone, wording, register and "
+                        "style are never blocking; put them in notes. List "
+                        "each blocking problem in issues, specific and concrete, "
+                        "and leave issues empty when you approve. Return JSON "
+                        "only: "
+                        '{"approved": true|false, "issues": ["..."], "notes": ["..."]}.'
                     ),
                 },
                 {
@@ -1051,17 +1096,30 @@ class CentralMind:
                 "ok": False,
                 "error": "Central Mind's communication audit returned an invalid verdict.",
             }
+        raw_issues = verdict.get("issues")
+        if raw_issues is None:
+            raw_issues = []
+        elif not isinstance(raw_issues, list):
+            raw_issues = [raw_issues]
+        issues = [str(item).strip() for item in raw_issues if str(item).strip()]
+        raw_notes = verdict.get("notes")
+        if raw_notes is None:
+            raw_notes = []
+        elif not isinstance(raw_notes, list):
+            raw_notes = [raw_notes]
+        notes = [str(item).strip() for item in raw_notes if str(item).strip()]
+
         if verdict.get("approved") is not True:
             return {
                 "ok": False,
                 "error": "Central Mind rejected the Chat draft.",
-                "issues": verdict.get("issues", []),
+                "issues": issues,
             }
-        if verdict.get("issues") not in ([], None):
+        if issues:
             return {
                 "ok": False,
                 "error": "Central Mind's audit reported issues with the Chat draft.",
-                "issues": verdict["issues"],
+                "issues": issues,
             }
 
         return {
@@ -1069,6 +1127,7 @@ class CentralMind:
             "reviewed_by": "central_mind",
             "audit_model": result.get("model"),
             "issues": [],
+            "notes": notes,
         }
 
     def _execute_single_plan(
