@@ -156,7 +156,7 @@ class ModelRouter:
                 "ok": result.get("ok"),
                 "model": result.get("model"),
                 "attempts": result.get("attempts"),
-                "output": str(result.get("output", ""))[:700],
+                "output": str(result.get("output", ""))[:3500],
             }
             try:
                 record["ranking"] = [
