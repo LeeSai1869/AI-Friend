@@ -16,6 +16,7 @@ class CodingExecution:
     def run(self, *, caller, broker, prompt, allowed_files, tests=(), sources=()):
         attempts = []
         functional = None
+        runner_unavailable = None
         snapshot = list(dict.fromkeys([*sources, *allowed_files]))
         for revision in range(self.MAX_REPAIRS + 1):
             writes, candidate_attempts, blocked = self.cycle.generate(
@@ -33,6 +34,12 @@ class CodingExecution:
             )
             attempts.append({'revision': revision, 'stage': 'candidate_tests', 'result': functional})
             if self.tester.passed(functional):
+                break
+            if self.tester.unavailable(functional):
+                # The runner itself is unavailable: apply after the syntax check
+                # and report honestly that functional tests did not run.
+                runner_unavailable = functional.get('error') or 'functional test runner unavailable'
+                functional = None
                 break
             data = functional.get('data') or {}
             if not data.get('tests_run'):
@@ -58,9 +65,10 @@ class CodingExecution:
                     'artifacts': [item['path'] for item in applied if item['ok'] is True]}
         py_paths = [item['path'] for item in writes if item['path'].lower().endswith('.py')]
         syntax = broker.call('run_python_compile', {'paths': py_paths}) if py_paths else None
-        if tests:
+        if tests and runner_unavailable is None:
             # Re-read the persisted files; candidate-only tests cannot prove the
             # actual write operation produced the intended implementation.
             functional = self.tester.run(broker=broker, paths=tests, sources=snapshot)
         return {'status': 'executed', 'applied': applied, 'writes': writes, 'syntax': syntax,
-                'functional_tests': functional, 'attempts': attempts}
+                'functional_tests': functional, 'attempts': attempts,
+                'functional_unavailable': runner_unavailable}

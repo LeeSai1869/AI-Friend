@@ -56,6 +56,12 @@ class CodingClassifier:
             "- If a code-change task names a file, list it exactly as "
             "the user named it.\n"
             "- Do NOT invent file paths.\n"
+            "- When the task asks to create, write or add tests, use code_change. "
+            "List a new test file named test_<module>.py next to the module under test "
+            "(main.py -> test_main.py), and list the module itself only if it must also change. "
+            "Use kind test only to run test files that already exist in the project.\n"
+            "- Keep exact function names, signatures and type annotations from the task "
+            "or its requirements in the summary.\n"
             "- If the task is unrelated to coding, use other.\n"
             "Reply with ONLY the JSON. No prose."
         )
