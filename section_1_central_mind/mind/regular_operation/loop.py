@@ -1036,7 +1036,7 @@ class CentralMind:
             messages=messages,
         )
 
-    def _review_chat_rendering(self, *, plan, rendered, evidence):
+    def _review_chat_rendering(self, *, plan, rendered, evidence, _again=False):
         import json
         from ..resource_socket import ResourceRequirement
 
@@ -1086,12 +1086,22 @@ class CentralMind:
         try:
             verdict = json.loads(str(result.get("output") or ""))
         except json.JSONDecodeError:
+            if not _again:
+                # The auditor did not return a verdict. Ask once more.
+                return self._review_chat_rendering(
+                    plan=plan, rendered=rendered, evidence=evidence, _again=True,
+                )
             return {
                 "ok": False,
                 "error": "Central Mind's communication audit returned invalid JSON.",
             }
 
-        if not isinstance(verdict, dict):
+        if not isinstance(verdict, dict) or "approved" not in verdict:
+            if not _again:
+                # For example the auditor echoed its input instead of auditing.
+                return self._review_chat_rendering(
+                    plan=plan, rendered=rendered, evidence=evidence, _again=True,
+                )
             return {
                 "ok": False,
                 "error": "Central Mind's communication audit returned an invalid verdict.",
@@ -1110,6 +1120,11 @@ class CentralMind:
         notes = [str(item).strip() for item in raw_notes if str(item).strip()]
 
         if verdict.get("approved") is not True:
+            if not issues and not _again:
+                # A rejection must name a blocking problem. Ask once more.
+                return self._review_chat_rendering(
+                    plan=plan, rendered=rendered, evidence=evidence, _again=True,
+                )
             return {
                 "ok": False,
                 "error": "Central Mind rejected the Chat draft.",
