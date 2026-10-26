@@ -231,6 +231,57 @@ class SemanticUnderstanding:
                 "error": "semantic understanding returned non-object JSON",
             }
 
+        expected_keys = (
+            "objective_summary",
+            "requirements",
+            "information_needs",
+            "consultations",
+            "candidate_steps",
+            "clarification_candidates",
+        )
+        if not any(key in proposed for key in expected_keys):
+            # The resource repeated its input or returned an unrelated object.
+            # Ask once more before treating the understanding as unusable.
+            try:
+                raw = self.semantic_resource(
+                    system=system,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": json.dumps(
+                                payload,
+                                ensure_ascii=False,
+                                default=str,
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your previous reply did not contain the requested "
+                                "analysis. Reply with ONE JSON object with exactly "
+                                "the requested keys, starting with objective_summary. "
+                                "Do not repeat the input."
+                            ),
+                        },
+                    ],
+                )
+                proposed = json.loads(self._strip_json_fence(raw))
+            except Exception as exc:
+                return {
+                    "error": (
+                        "semantic understanding retry failed: "
+                        + str(exc)
+                    ),
+                }
+            if not isinstance(proposed, dict) or not any(
+                key in proposed for key in expected_keys
+            ):
+                return {
+                    "error": (
+                        "semantic understanding did not contain the requested analysis"
+                    ),
+                }
+
         information_needs = []
         raw_needs = proposed.get("information_needs", [])
         if isinstance(raw_needs, list):
