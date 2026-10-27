@@ -172,6 +172,8 @@ class SemanticUnderstanding:
             "Prefer the convention that the project, the capability descriptions or the supplied evidence already point to, and otherwise the most widely used one. "
             "Mark such a need with material false, state each assumption inside the objective of the step that depends on it so the executing domain receives it, and mention it in rationale. "
             "Ask the human only when the answer would change what the user wants, when a wrong guess could lose or overwrite existing work, or when nothing in the request, context or evidence indicates a sensible choice. "
+            "If prior_understanding contains validation_feedback, Central Mind rejected those candidate steps for the reasons listed. "
+            "Propose corrected steps that use only components of kind domain from the trusted capability catalog, or a communicate step when no domain applies. "
             "Return JSON only with keys: objective_summary, requirements, "
             "constraints, ambiguities, information_needs, consultations, "
             "candidate_steps, clarification_candidates, "

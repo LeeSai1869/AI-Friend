@@ -184,7 +184,7 @@ class ChatRuntime:
                 "status": result.get("status"),
                 "error": result.get("error"),
                 "disposition": cognition.get("disposition"),
-                "plan": json.dumps(cognition.get("plan") or {}, ensure_ascii=False, default=str)[:2500],
+                "plan": json.dumps(cognition.get("plan") or {}, ensure_ascii=False, default=str)[:9000],
                 "review_issues": review.get("issues"),
                 "audit_model": review.get("audit_model"),
                 "render_model": result.get("source_model"),
@@ -195,6 +195,8 @@ class ChatRuntime:
             record["reasoning_evidence"] = (
                 json.dumps(evidence, ensure_ascii=False, default=str)[:3000] if evidence else None
             )
+            dropped = getattr(getattr(self.mind, "reasoner", None), "last_dropped_steps", None)
+            record["reasoning_dropped_steps"] = dropped or None
             directory = self.workspace / "debug"
             directory.mkdir(parents=True, exist_ok=True)
             with (directory / "chat_turns.jsonl").open("a", encoding="utf-8") as handle:

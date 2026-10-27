@@ -136,6 +136,9 @@ class Reasoner:
             for row in execution_rows or []:
                 if not isinstance(row, dict):
                     continue
+                if str(row.get("kind") or "").strip().lower() != "domain":
+                    # Tools are used by domains through the Broker; they are not plan steps.
+                    continue
 
                 normalized = dict(row)
                 normalized["purpose"] = "execution"
@@ -297,6 +300,19 @@ class Reasoner:
             proposal.get("rationale")
         )
 
+    def _note_drop(self, step_id, component, capability, reason) -> None:
+        """Remember why a proposed step was not accepted, for diagnosis and re-planning."""
+        rows = getattr(self, "last_dropped_steps", None)
+        if rows is None:
+            rows = []
+            self.last_dropped_steps = rows
+        rows.append({
+            "step_id": str(step_id or ""),
+            "component": str(component or ""),
+            "capability": str(capability or ""),
+            "reason": reason,
+        })
+
     def _validate_steps(
         self,
         rows: List[Dict[str, Any]],
@@ -375,6 +391,8 @@ class Reasoner:
                 capability = str(capability or "").strip()
 
                 if not component or not capability:
+                    self._note_drop(step_id, component, capability,
+                                    "the step names no component or capability")
                     continue
 
                 if self.inventory is None:
@@ -396,6 +414,8 @@ class Reasoner:
                     trusted = False
 
                 if not trusted:
+                    self._note_drop(step_id, component, capability,
+                                    "the component and capability pair is not in the trusted catalog")
                     continue
 
                 info = getattr(
@@ -408,6 +428,8 @@ class Reasoner:
                     info is None
                     or getattr(info, "kind", None) != "domain"
                 ):
+                    self._note_drop(step_id, component, capability,
+                                    "the component is not a domain; tools and models are used by domains and are not planned as steps")
                     continue
 
             dependencies = self._strings(
@@ -832,6 +854,8 @@ class Reasoner:
             else {}
         )
 
+        self.last_dropped_steps = []
+
         state = ReasoningState(
             objective=text,
             supplied_context=supplied_context,
@@ -866,6 +890,7 @@ class Reasoner:
         self._gather_ambient_evidence(state)
 
         prior: Optional[Dict[str, Any]] = None
+        replanned = False
 
         while state.can_continue():
             state.begin_cycle()
@@ -912,17 +937,47 @@ class Reasoner:
             if state.should_clarify:
                 break
 
+            drops_before = len(getattr(self, "last_dropped_steps", None) or [])
             validated = self._validate_steps(
                 state.candidate_steps,
                 state.objective,
                 evidence=state.evidence_payload(),
             )
+            new_drops = list(getattr(self, "last_dropped_steps", None) or [])[drops_before:]
 
             if validated:
                 state.candidate_steps = validated
                 state.missing_information = []
                 state.clarification_questions = []
                 break
+
+            if new_drops and not replanned:
+                # Steps were proposed but none passed validation. Tell the
+                # understanding resource why and ask once more before treating
+                # the request as plain communication.
+                replanned = True
+                feedback = [
+                    "step %s (%s / %s): %s" % (
+                        d["step_id"], d["component"] or "-", d["capability"] or "-", d["reason"],
+                    )
+                    for d in new_drops
+                ]
+                retry = self._semantic_proposal(
+                    state,
+                    prior={**proposal, "validation_feedback": feedback},
+                )
+                if not str(retry.get("error") or "").strip():
+                    revalidated = self._validate_steps(
+                        retry.get("candidate_steps") or [],
+                        state.objective,
+                        evidence=state.evidence_payload(),
+                    )
+                    if revalidated:
+                        self._assimilate_proposal(state, retry)
+                        state.candidate_steps = revalidated
+                        state.missing_information = []
+                        state.clarification_questions = []
+                        break
 
             # A pure communication result is legitimate when understanding
             # produced no executable domain work and no unresolved material
