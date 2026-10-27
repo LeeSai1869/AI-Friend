@@ -1,17 +1,46 @@
 schema_version: 2
-updated_at: '2026-10-11T00:00:00Z'
+updated_at: '2026-10-21T00:00:00Z'
 maintainer: trainer
 llms:
   qwen3.5_27b:
     display_name: Qwen 3.5 27B
     provider: ollama
+    origin: Alibaba
+    lineage: qwen
+    kind: general
+    version: '3.5'
+    parameter_size: 27.4B
+    size_gb: 19.8
+    context_tokens: 262144
+    model_format: safetensors
+    runner: mlx
+    quantization_level: nvfp4
     ollama_tag: qwen3.5:27b
     installed: true
-    kind: general
-    size_gb: 19
     capabilities: [completion, vision, thinking, tools]
-    evidence_status: ungraded
-    notes: Trainer supplied the runtime inventory. Capability availability is advertised by the endpoint; task quality has not yet been measured.
+    evidence_status: upstream_benchmarked
+    benchmarks:
+    - name: IFEval
+      score: 95.0
+      unit: percent
+      source: https://huggingface.co/Qwen/Qwen3.5-27B
+      evaluated_model: Qwen3.5-27B
+      note: Upstream model-card result; local NVFP4 Ollama build has not been independently benchmarked.
+    - name: IFBench
+      score: 76.5
+      unit: percent
+      source: https://huggingface.co/Qwen/Qwen3.5-27B
+      evaluated_model: Qwen3.5-27B
+      note: Upstream model-card result; local NVFP4 Ollama build has not been independently benchmarked.
+    best_tasks:
+    - capability: answer
+      quality: 0.95
+      quality_basis: IFEval
+      quality_source: https://huggingface.co/Qwen/Qwen3.5-27B
+      why: Upstream IFEval instruction-following score; cross-card comparison is directional and not an end-to-end local chat evaluation.
+    strengths:
+    - instruction_following
+    notes: Local Ollama build is NVFP4 on MLX. context_tokens is the native model limit; active Ollama num_ctx depends on generation settings. Upstream benchmark scores are directional until this quantized build is tested locally.
   qwen2.5-coder_7b:
     display_name: Qwen2.5 Coder 7B
     origin: Alibaba
@@ -283,15 +312,42 @@ llms:
       tokens_per_sec_class: slow
     notes: Excellent when the task requires deep thought. Useless for translation.
   deepseek-r1_14b:
-    display_name: DeepSeek R1 14B
+    display_name: DeepSeek R1 Distill Qwen 14B
     origin: DeepSeek
     lineage: deepseek
     kind: reasoner
     version: r1
+    model_variant: DeepSeek-R1-Distill-Qwen-14B
+    base_model: Qwen2.5-14B
+    parameter_size: 14.8B
     size_gb: 9
-    context_tokens: 65536
+    context_tokens: 131072
+    model_format: gguf
+    runner: ggml
+    quantization_level: Q4_K_M
     ollama_tag: deepseek-r1:14b
     installed: true
+    benchmarks:
+    - name: AIME 2024 pass@1
+      score: 69.7
+      unit: percent
+      source: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+      evaluated_model: DeepSeek-R1-Distill-Qwen-14B
+    - name: MATH-500 pass@1
+      score: 93.9
+      unit: percent
+      source: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+      evaluated_model: DeepSeek-R1-Distill-Qwen-14B
+    - name: GPQA Diamond pass@1
+      score: 59.1
+      unit: percent
+      source: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+      evaluated_model: DeepSeek-R1-Distill-Qwen-14B
+    - name: LiveCodeBench pass@1
+      score: 53.1
+      unit: percent
+      source: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+      evaluated_model: DeepSeek-R1-Distill-Qwen-14B
     problem_solving:
       style: chain_of_thought
       reasoning_leak: always
@@ -367,7 +423,7 @@ llms:
       ram_gb: 12
       load_time_sec: 15
       tokens_per_sec_class: medium
-    notes: Lighter than qwen3:30b, similar quality, better long context.
+    notes: Distilled reasoning model based on Qwen2.5-14B. context_tokens is the native model limit; active Ollama num_ctx depends on generation settings. Published benchmark results are upstream, not local Q4_K_M evaluations.
   qwen3-vl_8b:
     display_name: Qwen3 VL 8B
     origin: Alibaba
@@ -661,10 +717,22 @@ llms:
     lineage: llama
     kind: general
     version: '3.1'
+    parameter_size: 8.0B
     size_gb: 4.9
     context_tokens: 131072
+    model_format: gguf
+    runner: ggml
+    quantization_level: Q4_K_M
     ollama_tag: llama3.1:8b
     installed: true
+    evidence_status: upstream_benchmarked
+    benchmarks:
+    - name: IFEval
+      score: 80.4
+      unit: percent
+      source: https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
+      evaluated_model: Llama-3.1-8B-Instruct
+      note: Upstream model-card result; local Q4_K_M Ollama build has not been independently benchmarked.
     problem_solving:
       style: direct
       reasoning_leak: none
@@ -672,7 +740,7 @@ llms:
       planning_quality: 0.68
       single_pass_quality: 0.85
       ambiguity_handling: medium
-      instruction_following: 0.9
+      instruction_following: 0.804
       format_obedience: high
       math_strength: 0.65
       code_strength: 0.7
@@ -714,6 +782,11 @@ llms:
     - not_a_coder_specialist
     - not_vision
     best_tasks:
+    - capability: answer
+      quality: 0.804
+      quality_basis: IFEval
+      quality_source: https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
+      why: Upstream IFEval instruction-following score; cross-card comparison is directional and not an end-to-end local chat evaluation.
     - capability: chat
       quality: 0.88
       why: Fast, reliable English chat.
@@ -739,7 +812,7 @@ llms:
       ram_gb: 6
       load_time_sec: 5
       tokens_per_sec_class: fast
-    notes: Default fast chat. Good JSON. English-first.
+    notes: Default fast chat. Good JSON. English-first. context_tokens is the native model limit; active Ollama num_ctx depends on generation settings.
   llama3_latest:
     display_name: Llama 3 (latest)
     origin: Meta
@@ -1035,6 +1108,7 @@ domain_assignments:
   chat:
     answer:
       priority:
+      - qwen3.5_27b
       - llama3.1_8b
       - qwen2.5-coder_7b
       - gemma4_26b
@@ -1145,6 +1219,9 @@ routing:
     context_tokens: 16384
     think: false
   max_attempts_per_capability: 3
+  generation_by_capability:
+    answer:
+      think: false
   on_model_failure:
   - try_next_in_priority
   - after_all_fail_escalate_to_trainer

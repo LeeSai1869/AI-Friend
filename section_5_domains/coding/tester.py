@@ -18,3 +18,18 @@ class Tester:
                 and type(data.get('tests_run')) is int and data['tests_run'] > 0
                 and type(data.get('passed')) is int and data['passed'] > 0
                 and data.get('failures') == 0 and data.get('errors') == 0)
+
+
+    @staticmethod
+    def unavailable(result):
+        # True when the test runner itself could not run, so no test was executed.
+        result = result or {}
+        data = result.get('data') or {}
+        if result.get('ok') is True or data.get('tests_run'):
+            return False
+        error = str(result.get('error') or '')
+        return any(marker in error for marker in (
+            'Docker is required',
+            'AI_FRIEND_TEST_IMAGE',
+            'functional test runner failed',
+        ))

@@ -19,9 +19,19 @@ class IntakeMemoryServiceTests(unittest.TestCase):
         self.memory = Memory(root=self.root / "memory")
         self.service = MemoryService(self.memory)
         self.intake_client = self.service.client(
-            actor="intake",
-            role="tool",
+            actor="trainer-user",
+            role="trainer",
             domain="Gen",
+        )
+        self.central_client = self.service.client(
+            actor="central_mind",
+            role="central_mind",
+            domain="Mind",
+        )
+        self.coding_client = self.service.client(
+            actor="coder",
+            role="domain",
+            domain="Cod",
         )
         self.tool = IntakeCommit(self.root, broker=None)
         self.pending_path = self.root / ".central_mind" / "intake_pending.json"
@@ -41,42 +51,104 @@ class IntakeMemoryServiceTests(unittest.TestCase):
             "originator": [{"type": "trainer", "name": "user"}],
         }
 
-    def test_intake_submission_creates_pending_proposal_not_memory(self):
+    def test_trainer_intake_creates_unverified_raw_memory_with_context(self):
+        proposal = self.proposal("Trd")
+        proposal.update({
+            "source_path": "lesson.txt",
+            "intake_context": [{
+                "question": "What is this material?",
+                "answer": "A training example for testing.",
+            }],
+        })
         result = self.tool.call({
-            "proposal": self.proposal("Trd"),
+            "proposal": proposal,
             "memory_bridge": self.intake_client,
         })
 
         self.assertTrue(result["ok"], result.get("error"))
         data = result["data"]
-        self.assertTrue(data["proposal_id"])
-        self.assertEqual(data["status"], "pending")
+        self.assertTrue(data["memory_id"])
+        self.assertTrue(data["memory_id"].startswith("raw_"))
+        self.assertEqual(data["status"], "stored_raw")
+        self.assertEqual(data["memory_class"], "raw")
         self.assertEqual(data["domain"], "Trd")
-        self.assertEqual(self.memory.count(), 0)
-        self.assertTrue(self.pending_path.exists())
+        self.assertEqual(self.memory.count(), 1)
+        entry = self.memory.get(data["memory_id"])
+        self.assertEqual(entry.memory_class, "raw")
+        self.assertEqual(entry.domain_created, "Trd")
+        self.assertEqual(entry.originator[0].name, "trainer-user")
+        self.assertIn("A test-only approved memory entry.", entry.content)
+        self.assertIn("A training example for testing.", entry.content)
+        self.assertEqual(entry.source["source_type"], "intake")
+        self.assertEqual(entry.readers, ["central_mind"])
+        self.assertTrue(
+            (self.root / "memory" / "Raw Memory" / f"{entry.id}.json").is_file()
+        )
+        recalled = self.central_client.recall(
+            query="training example for testing",
+            memory_class="raw",
+        )
+        self.assertEqual([item["id"] for item in recalled], [data["memory_id"]])
+        self.assertEqual(recalled[0]["memory_class"], "raw")
+        self.assertEqual(
+            self.coding_client.recall(query="training example for testing"),
+            [],
+        )
+        self.assertEqual(
+            self.coding_client.recall(
+                query="training example for testing",
+                memory_class="raw",
+            ),
+            [],
+        )
+        self.assertIsNone(self.coding_client.get(data["memory_id"]))
 
-        pending = self.service.pending_knowledge_proposals()
-        self.assertTrue(any(
-            p["proposal_id"] == data["proposal_id"] for p in pending
-        ))
+    def test_trainer_intake_stores_content_larger_than_previous_limit(self):
+        content = ("large training source\n" * 29_999) + "END"
+        proposal = self.proposal()
+        proposal["content"] = content
+        proposal["intake_context"] = [{
+            "question": "What is this material?",
+            "answer": "A large training source used to verify intake has no size cap.",
+        }]
 
-    def test_intake_memory_is_created_only_after_central_approval(self):
         result = self.tool.call({
-            "proposal": self.proposal("Trd"),
+            "proposal": proposal,
             "memory_bridge": self.intake_client,
         })
-        self.assertTrue(result["ok"], result.get("error"))
-        proposal_id = result["data"]["proposal_id"]
 
-        with self.assertRaises(PermissionError):
-            self.service.commit_approved_proposal(
-                proposal_id,
-                approved_by="central_mind",
-                decision_reason="Central Mind must not manufacture Raw.",
-                approved_class="raw",
-            )
+        self.assertTrue(result["ok"], result.get("error"))
+        entry = self.memory.get(result["data"]["memory_id"])
+        self.assertIn(content, entry.content)
+        self.assertGreater(len(entry.content.encode("utf-8")), 512 * 1024)
+
+    def test_non_trainer_cannot_create_raw_intake_memory(self):
+        user_client = self.service.client(
+            actor="regular-user",
+            role="user",
+            domain="Gen",
+        )
+        proposal = self.proposal()
+        proposal["intake_context"] = [{
+            "question": "What is this material?",
+            "answer": "A user supplied source.",
+        }]
+        result = self.tool.call({
+            "proposal": proposal,
+            "memory_bridge": user_client,
+        })
+        self.assertFalse(result["ok"])
+        self.assertIn("trainer role required", result["error"].lower())
         self.assertEqual(self.memory.count(), 0)
-        self.assertTrue(self.pending_path.exists())
+
+    def test_intake_requires_trainer_context(self):
+        result = self.tool.call({
+            "proposal": self.proposal(),
+            "memory_bridge": self.intake_client,
+        })
+        self.assertFalse(result["ok"])
+        self.assertIn("nature of the material", result["error"])
+        self.assertEqual(self.memory.count(), 0)
 
     def test_invalid_domain_does_not_create_memory(self):
         result = self.tool.call({
@@ -85,7 +157,7 @@ class IntakeMemoryServiceTests(unittest.TestCase):
         })
 
         self.assertFalse(result["ok"])
-        self.assertIn("proposal submission failed", result["error"])
+        self.assertIn("Raw Memory intake failed", result["error"])
         self.assertEqual(self.memory.summary()["total"], 0)
         self.assertTrue(self.pending_path.exists())
 

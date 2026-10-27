@@ -171,6 +171,39 @@ class ChatRuntime:
             ],
         }
 
+    def _debug_turn(self, user_text: str, result: Dict[str, Any]) -> None:
+        """Append one compact diagnostic record per turn to the local state dir."""
+        import json
+        import time
+        try:
+            cognition = result.get("cognition") or {}
+            review = cognition.get("communication_review") or {}
+            record = {
+                "ts": round(time.time(), 3),
+                "user": user_text[:200],
+                "status": result.get("status"),
+                "error": result.get("error"),
+                "disposition": cognition.get("disposition"),
+                "plan": json.dumps(cognition.get("plan") or {}, ensure_ascii=False, default=str)[:9000],
+                "review_issues": review.get("issues"),
+                "audit_model": review.get("audit_model"),
+                "render_model": result.get("source_model"),
+                "domain": result.get("domain"),
+                "capability": result.get("capability"),
+            }
+            evidence = getattr(getattr(self.mind, "reasoner", None), "last_evidence", None)
+            record["reasoning_evidence"] = (
+                json.dumps(evidence, ensure_ascii=False, default=str)[:3000] if evidence else None
+            )
+            dropped = getattr(getattr(self.mind, "reasoner", None), "last_dropped_steps", None)
+            record["reasoning_dropped_steps"] = dropped or None
+            directory = self.workspace / "debug"
+            directory.mkdir(parents=True, exist_ok=True)
+            with (directory / "chat_turns.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        except Exception as exc:
+            print(f"[chat-debug] could not write turn record: {exc}")
+
     def respond(
         self,
         text: str,
@@ -201,10 +234,13 @@ class ChatRuntime:
             attachments=attachment_rows,
             context=context,
         )
+        mind_input = user_text
+        if not mind_input and attachment_rows:
+            mind_input = "Please review the attached file(s) and explain what they contain."
 
         try:
             result = self.mind.process(
-                user_text,
+                mind_input,
                 context=packet,
             )
         except Exception as exc:
@@ -221,10 +257,25 @@ class ChatRuntime:
                 "error": "Central Mind returned a non-mapping result",
             }
 
-        if user_text:
+        self._debug_turn(user_text, result)
+
+        if user_text or attachment_rows:
+            attached_names = [
+                str(row.get("name"))
+                for row in attachment_rows
+                if isinstance(row, dict) and row.get("name")
+            ]
+            stored_user_text = user_text
+            if attached_names:
+                attachment_note = "[Attached files: " + ", ".join(attached_names) + "]"
+                stored_user_text = (
+                    f"{stored_user_text}\n{attachment_note}"
+                    if stored_user_text
+                    else attachment_note
+                )
             chat.add_turn(
                 "user",
-                user_text,
+                stored_user_text,
                 action=str(intent or "ask"),
             )
 

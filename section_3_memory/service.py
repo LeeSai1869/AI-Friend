@@ -203,6 +203,47 @@ class MemoryService:
             raise ValueError(f"unknown domain prefix: {domain}")
         return MemoryClient(self, actor.strip(), role.strip(), domain)
 
+    def _record_trainer_intake(
+        self,
+        *,
+        actor: str,
+        role: str,
+        domain: str,
+        kind: str,
+        title: str,
+        content: str,
+        tags: List[str],
+        source_refs: List[str],
+        source: Dict[str, Any],
+    ) -> str:
+        if role != "trainer":
+            raise PermissionError("Trainer role required for Raw Memory intake")
+        if domain not in config.DOMAIN_PREFIXES:
+            raise ValueError(f"unknown domain prefix: {domain}")
+        if kind not in config.VALID_KINDS:
+            raise ValueError(f"unknown memory kind: {kind}")
+        if not title.strip() or not content.strip():
+            raise ValueError("intake title and content must be non-empty")
+
+        entry = self._bridge.memory.record(
+            domain=domain,
+            kind=kind,
+            title=title.strip(),
+            content=content,
+            memory_class="raw",
+            originator=[{"type": role, "name": actor}],
+            tags=tags,
+            writers=[role],
+            readers=["central_mind"],
+            source_refs=source_refs,
+            source=source,
+            derivation_note=(
+                "Trainer-introduced material. Raw and unverified; "
+                "Central Mind may recall it for analysis and testing."
+            ),
+        )
+        return entry.id
+
     def _propose_delete(
         self, actor: str, mem_id: str, reason: str
     ) -> Dict[str, Any]:
@@ -468,13 +509,20 @@ class MemoryClient:
         tags: Optional[List[str]] = None,
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
-        return self._service._bridge.recall(
+        entries = self._service._bridge.recall(
             query=query,
             memory_class=memory_class,
             domain=domain,
             tags=tags,
             limit=limit,
         )
+        if self.role != "central_mind":
+            entries = [
+                entry
+                for entry in entries
+                if entry.get("memory_class") != "raw"
+            ]
+        return entries
 
     def recall_tested(
         self, query: str, domain: Optional[str] = None, limit: int = 20
@@ -491,7 +539,37 @@ class MemoryClient:
         )
 
     def get(self, mem_id: str) -> Optional[Dict[str, Any]]:
-        return self._service._bridge.get(mem_id)
+        entry = self._service._bridge.get(mem_id)
+        if (
+            entry is not None
+            and entry.get("memory_class") == "raw"
+            and self.role != "central_mind"
+        ):
+            return None
+        return entry
+
+    def record_trainer_intake(
+        self,
+        *,
+        domain: Optional[str] = None,
+        kind: str,
+        title: str,
+        content: str,
+        tags: Optional[List[str]] = None,
+        source_refs: Optional[List[str]] = None,
+        source: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        return self._service._record_trainer_intake(
+            actor=self.actor,
+            role=self.role,
+            domain=domain or self.domain,
+            kind=kind,
+            title=title,
+            content=content,
+            tags=list(tags or []),
+            source_refs=list(source_refs or []),
+            source=dict(source or {}),
+        )
 
     # PROPOSE KNOWLEDGE
     # Submission queues a proposal; it does not create or modify a memory entry.

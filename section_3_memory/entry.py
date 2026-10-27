@@ -6,6 +6,9 @@ raw, tested, derived. State is computed from counts, not stored.
 from __future__ import annotations
 
 import time
+import re
+import secrets
+import string
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional
 
@@ -175,6 +178,13 @@ def make_id(domain_prefix: str, sequence_number: int) -> str:
         raise ValueError(f"unknown domain prefix: {domain_prefix}")
     seq = str(sequence_number).zfill(config.SEQUENCE_DIGITS)
     return f"{config.ID_PREFIX}_{domain_prefix}_{seq}"
+
+
+def make_raw_id(title: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:64]
+    slug = slug or "memory"
+    suffix = "".join(secrets.choice(string.ascii_lowercase) for _ in range(8))
+    return f"raw_{slug}_{suffix}"
 
 
 def parse_id(mem_id: str) -> Dict[str, str]:

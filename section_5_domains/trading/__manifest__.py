@@ -1,3 +1,4 @@
+# Placeholder: workspace UI only. No engine, capabilities or keywords until Trading is built.
 ORGAN = {
     "name": "trading",
     "kind": "domain",
@@ -6,8 +7,8 @@ ORGAN = {
     "display_name": "Trading Buddy",
     "icon": "📈",
     "window": "trading",
-    "capabilities": ["analyze", "forecast", "backtest"],
-    "keywords": ["trade", "trading", "btc", "bitcoin", "crypto", "binance", "rsi", "ema", "market", "strategy"],
-    "entry_module": "trading_engine",
+    "capabilities": [],
+    "keywords": [],
+    "entry_module": "",
     "entry_attr": "ORGAN",
 }

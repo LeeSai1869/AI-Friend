@@ -62,6 +62,7 @@ ORGAN = {
                 "context without reading source contents or changing files."
             ),
             "read_only": True,
+            "ambient": True,
         },
     },
     "keywords": [

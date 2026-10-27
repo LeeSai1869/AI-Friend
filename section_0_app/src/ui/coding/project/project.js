@@ -59,8 +59,8 @@ export async function selectProject() {
   const normalized = selected.replace(/[\\/]+$/, "");
   const parts = normalized.split(/[\\/]/).filter(Boolean);
 
-  return setProject({
+  return {
     name: parts.at(-1) || normalized,
     root: normalized,
-  });
+  };
 }

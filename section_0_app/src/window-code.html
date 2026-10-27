@@ -23,6 +23,7 @@
 
       <div class="coding-left-footer">
         <button id="btn-settings">⚙ Settings</button>
+        <button id="btn-trainer">👤 Trainer mode</button>
         <button id="btn-intake">📥 Memory intake</button>
         <div id="coding-username">👤 Signed in</div>
       </div>
@@ -44,38 +45,30 @@
     </main>
 
     <aside class="coding-chat-panel">
-      <div class="chat-topbar">
-        <div class="chat-topic">
-          New chat <span class="dim">· general</span>
-        </div>
-        <button id="coding-new-chat">＋</button>
+      <div class="chat-topbar coding-chat-topbar">
+        <div class="chat-topic">Current chat <span class="dim">· general</span></div>
+        <button id="coding-new-chat" type="button" aria-label="New chat">+</button>
       </div>
-
       <div class="coding-chat-history" id="coding-chat-history"></div>
-
-      <div class="chat-body">
+      <div class="chat-body coding-chat-body">
         <div class="chat-thread" id="chat-thread">
           <div class="msg msg-mind">
             <div class="msg-role">Central Mind</div>
-            <div class="msg-body">
-              Ready. Working on this project.
-            </div>
+            <div class="msg-body">Ready. What would you like to do?</div>
           </div>
         </div>
       </div>
-
       <div class="intent-bar" id="intent-bar"></div>
-
-      <div class="input-bar">
-        <textarea
-          id="input"
-          placeholder="Ask about this project..."
-          rows="1"
-        ></textarea>
-        <button class="send-btn" id="send">Send ↑</button>
+      <div class="input-bar coding-chat-input">
+        <input id="chat-file-picker" type="file" multiple hidden />
+        <button class="input-action-btn" id="chat-attach" type="button" aria-label="Attach files" title="Attach files">＋</button>
+        <textarea id="input" placeholder="Ask about this project..." rows="1"></textarea>
+        <button class="input-action-btn" id="chat-mic" type="button" aria-label="Start speech-to-text" title="Start speech-to-text">🎙</button>
+        <button class="send-btn" id="send" type="button">Send ↑</button>
       </div>
+      <div class="input-attachments" id="input-attachments" aria-live="polite"></div>
+      <div class="input-status" id="input-status" role="status" aria-live="polite"></div>
     </aside>
-
   </div>
 
   <div id="intake-overlay" style="display:none;">

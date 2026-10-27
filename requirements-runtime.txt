@@ -1,3 +1,10 @@
 -r section_1_central_mind/requirements.txt
+PyMuPDF>=1.25,<2
+Pillow>=10
+pillow-heif>=0.18
+python-docx>=1.1
+python-pptx>=1.0
+openpyxl>=3.1
+imageio-ffmpeg>=0.6
 PyYAML==6.0.3
 websockets==17.3

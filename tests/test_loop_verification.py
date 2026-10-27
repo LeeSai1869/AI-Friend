@@ -1,5 +1,6 @@
 import sys
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,8 +9,10 @@ CENTRAL_MIND = PROJECT_ROOT / "section_1_central_mind"
 sys.path.insert(0, str(CENTRAL_MIND))
 
 from mind.loop import CentralMind
+from mind.cognition import CognitivePlan, CognitiveStep
 from mind.composer import Composer
 from mind.verifier import Verifier
+from section_4_chatbox.chatbox import Chatbox
 sys.path.insert(0, str(PROJECT_ROOT / "section_5_domains"))
 from coding.coding_engine import CodingOrgan
 
@@ -18,6 +21,7 @@ from section_1_central_mind.mind.reasoner import Reasoner
 from section_1_central_mind.mind.appraiser import SelfAppraiser
 from section_1_central_mind.mind.learner import Learner
 from section_1_central_mind.mind.capability_expansion import CapabilityExpansion
+from section_1_central_mind.mind.self_assessment.loop import SelfAssessmentLoop
 
 class StubOrgan:
     name = "test-organ"
@@ -25,8 +29,10 @@ class StubOrgan:
     def __init__(self, response, verdict):
         self.responses = list(response) if isinstance(response, list) else [response]
         self.verdict = verdict
+        self.requests = []
 
     def handle(self, request):
+        self.requests.append(request)
         return self.responses.pop(0)
 
     def verify(self, response):
@@ -60,12 +66,30 @@ class StubScorer:
         return kwargs if kwargs else (args[-1] if args and isinstance(args[-1], dict) else {})
 
 
+class StubResourceSocket:
+    def fulfill(self, requirement, **context):
+        if requirement["domain"] == "chat":
+            payload = json.loads(context["messages"][-1]["content"])
+            return {
+                "ok": True,
+                "output": "\n".join(payload["verified_evidence"]),
+                "model": "test-chat",
+            }
+        return {
+            "ok": True,
+            "output": json.dumps({"approved": True, "issues": []}),
+            "model": "test-reviewer",
+        }
+
+
 def make_mind(organ):
     organs = organ if isinstance(organ, list) else [organ]
     mind = CentralMind.__new__(CentralMind)
     mind.turn_count = 0
     mind.broker = StubBroker()
     mind.chat_log = []
+    mind.chatbox = Chatbox()
+    mind.resource_socket = StubResourceSocket()
     mind.caller = object()
     mind.memory = None
     mind.router = SimpleNamespace(
@@ -91,6 +115,12 @@ def make_mind(organ):
     )
     mind.verifier = Verifier()
     mind.scorer = StubScorer()
+    mind.self_assessment = SelfAssessmentLoop(
+        scorer=mind.scorer,
+        proposal_queue=None,
+        audit_stage=None,
+        inventory=None,
+    )
     mind.reasoner = Reasoner(memory=None)
     mind.appraiser = SelfAppraiser()
     mind.learner = Learner()
@@ -100,10 +130,53 @@ def make_mind(organ):
     infos = mind.router.route({})
     from runtime_contract import configure_execution_contract
     configure_execution_contract(mind, infos)
+    mind.resource_socket.connect("model", StubResourceSocket().fulfill)
     return mind
 
 
 class CentralMindVerificationTests(unittest.TestCase):
+    def test_central_mind_supplies_recalled_raw_memory_to_assigned_domain(self):
+        organ = StubOrgan(
+            {"status": "ok", "output": "Analyzed unverified source"},
+            {"ok": True, "reason": "analysis supported by evidence"},
+        )
+        mind = make_mind(organ)
+        mind.inventory = SimpleNamespace(
+            get=lambda name: SimpleNamespace(
+                name=name,
+                kind="domain",
+                manifest={"memory_domain": "Gen"},
+                capabilities=["inspect_code"],
+            ) if name == "test-organ" else None,
+        )
+        raw_entry = {
+            "id": "mem_Gen_0000000000001",
+            "memory_class": "raw",
+            "title": "Trainer source",
+            "content": "A user-provided formula that needs checking.",
+        }
+        plan = CognitivePlan(
+            objective="Analyze the formula",
+            recalled_memory=[raw_entry],
+            memory_ids=[raw_entry["id"]],
+            steps=[CognitiveStep(
+                step_id="analyze",
+                objective="Analyze the formula",
+                component="test-organ",
+                capability="inspect_code",
+            )],
+        )
+
+        result = mind.process("Analyze the formula", plan=plan)
+
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("Trainer source", organ.requests[0]["text"])
+        self.assertIn(
+            "A user-provided formula that needs checking.",
+            organ.requests[0]["text"],
+        )
+        self.assertIn("unverified material", organ.requests[0]["text"])
+
     def test_rejected_answer_is_not_returned_as_success(self):
         organ = StubOrgan(
             {"status": "ok", "output": "REJECTED SECRET ANSWER"},

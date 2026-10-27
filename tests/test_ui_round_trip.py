@@ -95,10 +95,12 @@ def browser_stack(tmp_path, monkeypatch):
             elif 'Files actually inspected:' in text:
                 assert 'def answer()' in text
                 output = 'I read answer.py from the open project. It defines answer() and returns 42.'
-            elif "Render Central Mind's final response" in text:
+            elif 'Render a clear, concise response for the human' in text:
                 payload = json.loads(request['messages'][-1]['content'])
                 events['communication_evidence'].append(payload['verified_evidence'])
                 output = ('I read answer.py from the open project.\n' if 'ptoject' in payload.get('objective', '') else 'Implemented answer.py and verified the selected behavior.\n') + '\n'.join(payload['verified_evidence']) if payload['verified_evidence'] else 'Hello. How can I help?'
+            elif 'Audit the Chat draft against the objective' in text:
+                output = json.dumps({'approved': True, 'issues': []})
             elif 'Answer strictly with JSON in one of these shapes' in text:
                 output = json.dumps({'kind': 'code_change', 'files': ['answer.py'], 'tests': ['test_answer.py'],
                                      'summary': 'Return the requested value'})
@@ -222,6 +224,32 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         (stack['project'] / 'assets/info.txt').write_text('Nested text file')
         coding.locator('#btn-open-folder').click()
         expect(coding.locator('#files-tree')).to_contain_text('answer.py')
+        expect(coding.locator('#coding-project-name')).to_have_text('project')
+        expect(chat.locator('#active-project-context')).to_have_text('Project: project')
+        assert coding.locator('#input').count() == 1
+        assert coding.locator('.coding-chat-panel').count() == 1
+        coding.locator('#input').fill('Hello from Coding')
+        coding.locator('#send').click()
+        expect(coding.locator('#chat-thread')).to_contain_text(
+            'Hello. How can I help?',
+            timeout=30000,
+        )
+        coding_prompt = next(
+            prompt for prompt in reversed(stack['events']['prompts'])
+            if 'PROPOSE a semantic' in prompt
+            and 'Hello from Coding' in prompt
+        )
+        coding_context = json.loads(
+            coding_prompt.rsplit('\n', 1)[-1]
+        )['supplied_context']
+        assert coding_context['observations']['active_window'] == {
+            'kind': 'specialised',
+            'surface': 'coding',
+        }
+        assert coding_context['observations']['shared_context']['active_project'] == {
+            'name': 'project',
+            'root': str(stack['project']),
+        }
         coding.locator('#files-tree .file').filter(has_text='assets').click()
         expect(coding.locator('#files-tree')).to_contain_text('image.png')
         expect(coding.locator('#files-tree')).to_contain_text('info.txt')
@@ -253,16 +281,25 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         chat.locator('#send').click()
         expect(chat.locator('#chat-thread')).to_contain_text('I read answer.py from the open project.', timeout=30000)
         expect(chat.locator('#send')).to_be_enabled()
+        project_prompt = next(
+            prompt for prompt in stack['events']['prompts']
+            if 'PROPOSE a semantic' in prompt
+            and 'Can you read my ptoject files?' in prompt
+        )
+        supplied_context = json.loads(
+            project_prompt.rsplit('\n', 1)[-1]
+        )['supplied_context']
+        assert supplied_context['observations']['shared_context']['active_project'] == {
+            'name': 'project',
+            'root': str(stack['project']),
+        }
         assert (stack['project'] / 'answer.py').read_text().endswith('return 42\n')
 
-        # Explicit deletion propagates to both windows and leaves source intact.
-        coding.locator('.coding-history-item').filter(has_text='Can you read my ptoject files?').click()
-        expect(coding.locator('#chat-thread')).to_contain_text('I read answer.py')
+        # Coding and Chat are separate surfaces backed by the same Central Mind.
         chat.get_by_role('button', name='Chat actions: Can you read my ptoject files?', exact=True).click()
         chat.get_by_role('menuitem', name='Delete chat', exact=True).click()
         expect(chat.locator('#chat-list')).not_to_contain_text('Can you read my ptoject files?')
-        expect(coding.locator('#coding-chat-history')).not_to_contain_text('Can you read my ptoject files?')
-        expect(coding.locator('#chat-thread')).not_to_contain_text('I read answer.py')
+        assert coding.locator('#coding-chat-history').count() == 1
         assert (stack['project'] / 'answer.py').exists()
 
         # All four extra intake methods are connected, including a source outside the project.
@@ -273,11 +310,14 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         chat.locator('#intake-source-name').fill('External lesson')
         chat.locator('#intake-source-submit').click()
         expect(chat.locator('#intake-store')).to_be_visible(timeout=15000)
+        chat.locator('#intake-context-0').fill('A general training lesson for future analysis.')
         chat.locator('#intake-store').click()
-        expect(chat.locator('#intake-body')).to_contain_text('Intake evaluation result', timeout=15000)
-        proposal_id = int(chat.locator('.intake-value').first.inner_text())
-        imported = stack['events']['minds'][0].memory_service.knowledge_proposal(proposal_id)
-        assert imported['content'] == lesson, 'must ingest full content, not its 500-character preview'
+        expect(chat.locator('#intake-body')).to_contain_text('Intake stored', timeout=15000)
+        memory_id = chat.locator('.intake-value').first.inner_text()
+        imported = stack['memory'].get(memory_id)
+        assert imported.memory_class == 'raw'
+        assert lesson in imported.content, 'must ingest full content, not its 500-character preview'
+        assert 'A general training lesson for future analysis.' in imported.content
         chat.locator('#intake-another').click()
         chat.locator('[data-action="file"]').click()
         chat.locator('#intake-upload').set_input_files({'name': 'outside-project.txt', 'mimeType': 'text/plain', 'buffer': b'External disk lesson'})
@@ -310,6 +350,22 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         chat.locator('#send').click()
         expect(chat.locator('#chat-thread')).to_contain_text('Hello. How can I help?', timeout=15000)
         expect(chat.locator('.msg-tool')).to_have_count(0)
+        chat.locator('#btn-trainer').click()
+        expect(chat.locator('.account-controls-dialog')).to_contain_text(
+            'Trainer mode is active',
+        )
+        chat.get_by_role('button', name='Open Memory Intake').click()
+        expect(chat.locator('#intake-overlay')).to_be_visible()
+        chat.locator('#intake-close').click()
+        expect(chat.locator('#intake-overlay')).to_be_hidden()
+        coding.locator('#btn-settings').click()
+        expect(coding.locator('.account-controls-dialog')).to_contain_text(
+            'Signed in as test_trainer',
+        )
+        expect(coding.locator('.account-controls-dialog')).to_contain_text(
+            'Role: trainer',
+        )
+        coding.get_by_role('button', name='Close panel').click()
         screenshot = ROOT / 'test_results/ui-round-trip.png'
         screenshot.parent.mkdir(exist_ok=True)
         chat.screenshot(path=str(screenshot), full_page=True)
@@ -326,4 +382,8 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         expect(page.locator('#auth-overlay')).to_be_hidden(timeout=15000)
         expect(page.locator('#runtime-build')).to_contain_text('UI / Mind connected')
         assert page.evaluate('localStorage.length') == 0
+        page.locator('#btn-settings').click()
+        page.get_by_role('button', name='Sign out', exact=True).click()
+        expect(page.locator('#auth-overlay')).to_be_visible(timeout=15000)
+        expect(page.locator('#auth-status')).to_contain_text('Signed out.')
         browser.close()

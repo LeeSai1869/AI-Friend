@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 
 from mind.organ import Organ
 from .project_context import CodingProjectContext
+from .conventions import conventional_test_path, module_under_test, plan_requirements_block
 from .classification import CodingClassifier
 from .inspection import CodingInspector
 from .recall import CodingRecaller
@@ -343,6 +344,7 @@ class CodingOrgan(Organ):
         if domain is not self:
             return domain.handle(request)
         task = (request.get("text") or "").strip()
+        task += plan_requirements_block(request.get("cognitive_plan"))
         answers = request.get("answers")
         if isinstance(answers, dict) and any(value for value in answers.values()):
             import json
@@ -479,6 +481,7 @@ class CodingOrgan(Organ):
         # ------------------------------------------------------------------
         contents = {}
         new_files = []
+        reference = {}
         for f in files_to_change[:10]:
             r = broker.call("read_file", {"path": f})
             if r.get("ok"):
@@ -486,9 +489,17 @@ class CodingOrgan(Organ):
             elif str(r.get("error", "")).startswith("not found:"):
                 # A missing file is distinct from denied or unreadable content.
                 # New paths must have been named explicitly by the user.
-                if f not in task:
+                if f not in task and not conventional_test_path(
+                    f, task,
+                    self.project_context.tree.files() if self.project_context.is_open else [],
+                ):
                     return resource_question("confirm the proposed new file path " + f)
                 new_files.append(f)
+                sibling = module_under_test(f)
+                if sibling and sibling not in contents:
+                    sibling_read = broker.call("read_file", {"path": sibling})
+                    if sibling_read.get("ok"):
+                        reference[sibling] = sibling_read["data"]["content"]
             else:
                 return {"status": "error", "error": r.get("error") or "file read failed", "artifacts": []}
 
@@ -516,12 +527,16 @@ class CodingOrgan(Organ):
         if len(files_block) > 48000:
             return resource_question("the selected files exceed the full-file context budget; narrow the change")
         new_files_block = "\n".join(f"--- NEW: {k} ---" for k in new_files)
+        reference_block = "".join(
+            f"Reference file (read-only, do not write it):\n--- {k} ---\n{v[:12000]}\n\n"
+            for k, v in reference.items()
+        )
         change_prompt = (
             f"Task: {task}\n\n"
             f"Change summary: {summary}\n\n"
             f"{recalled_block}\n\n"
-            f"Existing files:\n{files_block}\n\nNew files:\n{new_files_block}\n\n"
-            "Write the change. Reply with a JSON object:\n"
+            f"Existing files:\n{files_block}\n\nNew files:\n{new_files_block}\n\n{reference_block}"
+            "Write the change. Keep every function name, signature and type annotation exactly as the task states. If you write tests, use the standard unittest module so they need no extra packages. Reply with a JSON object:\n"
             '{"writes": [{"path": "file.py", "content": "full new content"}]}\n'
             f"You may ONLY write these files: {allowed_files}\n"
             "Do NOT invent any other path."
@@ -560,7 +575,14 @@ class CodingOrgan(Organ):
             lines.append("")
             lines.append(f"Python syntax check: {'PASSED' if test_result.get('ok') else 'FAILED'}")
             if functional_result is None:
-                lines.append("Functional tests have not been run: no test modules were selected.")
+                unavailable = execution.get("functional_unavailable")
+                written_tests = [a["path"] for a in applied if module_under_test(a["path"])]
+                if unavailable:
+                    lines.append("Functional tests were not run: " + str(unavailable) + ". Only file writes and Python syntax were checked.")
+                elif written_tests:
+                    lines.append("Test file(s) written but not executed: " + ", ".join(written_tests) + ". Functional behavior is unverified.")
+                else:
+                    lines.append("Functional tests have not been run: no test modules were selected.")
             out = (test_result.get("data") or {}).get("stdout", "")
             err = (test_result.get("data") or {}).get("stderr", "")
             if out:

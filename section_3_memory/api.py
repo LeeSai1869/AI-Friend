@@ -6,12 +6,13 @@ State is computed from counts, not stored.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import config
-from .entry import Entry, Originator, Failure, CrossRef, make_id, parse_id
+from .entry import Entry, Originator, Failure, CrossRef, make_id, make_raw_id, parse_id
 from .store import Store
 from .index import Index
 
@@ -19,19 +20,33 @@ from .index import Index
 class Memory:
 
     def __init__(self, root: Path = None):
-        entries_dir = (Path(root) / "entries") if root else config.ENTRIES_DIR
-        self.store = Store(entries_dir)
+        memory_root = Path(root) if root else config.MEMORY_ROOT
+        self.store = Store(memory_root)
         self.index = Index(self.store)
-        self._seq_file = entries_dir / "_sequences.json"
+        self._seq_file = memory_root / "_sequences.json"
         self._sequences = self._load_sequences()
 
     def _load_sequences(self) -> Dict[str, int]:
+        sequences = {}
         if self._seq_file.exists():
             try:
-                return json.loads(self._seq_file.read_text(encoding="utf-8"))
+                payload = json.loads(self._seq_file.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    sequences = {
+                        str(domain): int(value)
+                        for domain, value in payload.items()
+                    }
             except Exception:
-                pass
-        return {}
+                sequences = {}
+        for mem_id in self.store.list_ids():
+            match = re.fullmatch(r"mem_([A-Za-z]+)_(\d+)", mem_id)
+            if match and match.group(1) in config.DOMAIN_PREFIXES:
+                domain, sequence = match.groups()
+                sequences[domain] = max(
+                    sequences.get(domain, 0),
+                    int(sequence),
+                )
+        return sequences
 
     def _save_sequences(self) -> None:
         self._seq_file.write_text(json.dumps(self._sequences, indent=2), encoding="utf-8")
@@ -42,6 +57,12 @@ class Memory:
         self._sequences[domain_prefix] = nxt
         self._save_sequences()
         return nxt
+
+    def _new_raw_id(self, title: str) -> str:
+        while True:
+            mem_id = make_raw_id(title)
+            if not self.store.exists(mem_id):
+                return mem_id
 
     def record(
         self,
@@ -68,8 +89,11 @@ class Memory:
         if memory_class not in config.VALID_MEMORY_CLASSES:
             raise ValueError(f"unknown memory_class: {memory_class}")
 
-        seq = self._next_seq(domain)
-        mem_id = make_id(domain, seq)
+        if memory_class == "raw":
+            mem_id = self._new_raw_id(title)
+        else:
+            seq = self._next_seq(domain)
+            mem_id = make_id(domain, seq)
 
         orig = [Originator(type=o.get("type", "unknown"), name=o.get("name", "unknown"))
                 for o in (originator or [])]

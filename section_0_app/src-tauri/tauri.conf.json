@@ -33,7 +33,8 @@
       "icons/icon.png"
     ],
     "resources": [
-      "../../section_1_central_mind/**/*",
+    "speech_recognition.swift",
+    "../../section_1_central_mind/**/*",
       "../../section_7_models/**/*",
       "../../section_2_constitution/**/*",
       "../../section_3_memory/**/*",

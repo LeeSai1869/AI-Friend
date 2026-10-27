@@ -143,8 +143,37 @@ class SemanticUnderstanding:
             "is for context or evidence gathering, not completion of the user's "
             "requested action. Candidate execution steps must use component and "
             "capability identifiers only from the trusted capability catalog. "
+            "When the user asks whether AI Friend can access, inspect, or act "
+            "on something, do not answer from assumption or return a "
+            "communication-only plan if the trusted capability catalog "
+            "describes a relevant capability or live-state evidence source. "
+            "Use the capability descriptions to distinguish similarly named "
+            "operations and identify which domain owns the requested data. "
+            "Propose a matching read-only evidence consultation when one is "
+            "declared; UI observations alone do not prove that a resource is "
+            "available. If the catalog declares a relevant execution "
+            "capability but no evidence capability, plan a safe capability "
+            "check or ask a focused clarification instead of claiming the "
+            "capability is unavailable. "
             "Never invent identifiers. A candidate step kind is domain or "
             "communicate. A communicate step has null component and capability. "
+            "The active UI window and its project details are observations, "
+            "not domain-routing instructions. Choose domains from the trusted "
+            "capability catalog according to the user's objective; the UI does "
+            "not choose a domain. Catalog entries with purpose='evidence' may "
+            "only be used for consultations, while purpose='execution' entries "
+            "may be used for candidate steps. Consult a domain for discoverable "
+            "context, such as whether its project is open, before asking the "
+            "human for information the domain can provide. If evidence shows "
+            "that a needed project is not open, ask the human to open/select it. "
+            "Other domain steps may be included when the task genuinely "
+            "requires multiple domains. "
+            "Do not ask the human for a detail that has a conventional default that a competent practitioner would simply choose, such as which standard tool or framework to use, where a new file belongs, or naming, formatting and style. "
+            "Prefer the convention that the project, the capability descriptions or the supplied evidence already point to, and otherwise the most widely used one. "
+            "Mark such a need with material false, state each assumption inside the objective of the step that depends on it so the executing domain receives it, and mention it in rationale. "
+            "Ask the human only when the answer would change what the user wants, when a wrong guess could lose or overwrite existing work, or when nothing in the request, context or evidence indicates a sensible choice. "
+            "If prior_understanding contains validation_feedback, Central Mind rejected those candidate steps for the reasons listed. "
+            "Propose corrected steps that use only components of kind domain from the trusted capability catalog, or a communicate step when no domain applies. "
             "Return JSON only with keys: objective_summary, requirements, "
             "constraints, ambiguities, information_needs, consultations, "
             "candidate_steps, clarification_candidates, "
@@ -155,8 +184,7 @@ class SemanticUnderstanding:
             "with keys step_id, objective, kind, component, capability, "
             "depends_on, requirements, constraints, expected_outcome, "
             "confidence, rationale. clarification_candidates must be a list of "
-            "objects with keys attribute, question, options, default. Each clarification attribute "
-            "must exactly match the subject of its corresponding unresolved information_need."
+            "objects with keys attribute, question, options, default."
         )
 
         payload = {
@@ -204,6 +232,57 @@ class SemanticUnderstanding:
             return {
                 "error": "semantic understanding returned non-object JSON",
             }
+
+        expected_keys = (
+            "objective_summary",
+            "requirements",
+            "information_needs",
+            "consultations",
+            "candidate_steps",
+            "clarification_candidates",
+        )
+        if not any(key in proposed for key in expected_keys):
+            # The resource repeated its input or returned an unrelated object.
+            # Ask once more before treating the understanding as unusable.
+            try:
+                raw = self.semantic_resource(
+                    system=system,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": json.dumps(
+                                payload,
+                                ensure_ascii=False,
+                                default=str,
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your previous reply did not contain the requested "
+                                "analysis. Reply with ONE JSON object with exactly "
+                                "the requested keys, starting with objective_summary. "
+                                "Do not repeat the input."
+                            ),
+                        },
+                    ],
+                )
+                proposed = json.loads(self._strip_json_fence(raw))
+            except Exception as exc:
+                return {
+                    "error": (
+                        "semantic understanding retry failed: "
+                        + str(exc)
+                    ),
+                }
+            if not isinstance(proposed, dict) or not any(
+                key in proposed for key in expected_keys
+            ):
+                return {
+                    "error": (
+                        "semantic understanding did not contain the requested analysis"
+                    ),
+                }
 
         information_needs = []
         raw_needs = proposed.get("information_needs", [])

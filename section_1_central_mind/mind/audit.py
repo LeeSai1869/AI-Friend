@@ -16,6 +16,19 @@ DEFAULT_POLICY = {
         "dependents_scan_required": True,
         "affects_central_mind_acknowledgement_required": True,
     },
+    "feature_expansion": {
+        "allowed_risk_levels": {"low", "medium"},
+        "required_evidence_keys": {
+            "reason",
+            "observed_signal",
+            "package_validation",
+            "tests_passed",
+            "protected_scope_check",
+            "targets",
+        },
+        "dependents_scan_required": True,
+        "affects_central_mind_acknowledgement_required": True,
+    },
 }
 
 
@@ -35,11 +48,50 @@ class AuditStage:
         checked.append("risk_level")
         ev = dict(getattr(proposal, "evidence", {}) or {})
         missing = [k for k in policy["required_evidence_keys"]
-                   if k not in ev or not ev.get(k)]
+                   if k not in ev or ev[k] is None or ev[k] == ""]
         if missing:
             return self._v("needs_more_evidence",
                            f"missing: {sorted(missing)!r}", checked + ["required_evidence"])
         checked.append("required_evidence")
+        if kind == "feature_expansion" and (
+            getattr(proposal, "affects_central_mind", False)
+            or ev.get("protected_scope_check") is not True
+            or ev.get("tests_passed") is not True
+            or ev.get("package_validation") is not True
+        ):
+            return self._v(
+                "fail",
+                "feature expansion failed protected-scope or package validation",
+                checked + ["feature_package"],
+            )
+        if kind == "feature_expansion":
+            targets = ev.get("targets")
+            if not isinstance(targets, list) or not targets:
+                return self._v(
+                    "needs_more_evidence",
+                    "feature targets must be listed",
+                    checked + ["targets"],
+                )
+            allowed_roots = (
+                "section_5_domains/",
+                "section_6_capabilities/",
+                "section_8_tools/",
+            )
+            for target in targets:
+                path = str(target or "").replace("\\", "/")
+                parts = path.split("/")
+                if (
+                    path.startswith("/")
+                    or not path.startswith(allowed_roots)
+                    or any(part in {"", ".", ".."} for part in parts)
+                    or path.lower().endswith(".md")
+                ):
+                    return self._v(
+                        "fail",
+                        f"protected or invalid feature target: {path!r}",
+                        checked + ["targets"],
+                    )
+            checked.append("targets")
         if policy["dependents_scan_required"] and "dependents_scan" not in ev:
             return self._v("needs_more_evidence", "dependents_scan required",
                            checked + ["dependents_scan"])

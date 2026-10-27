@@ -116,7 +116,7 @@ class WebFetch(Tool):
     )
     parameters = {
         "url": "the full URL to fetch",
-        "max_chars": "optional, default 20000",
+        "max_chars": "optional; omit for the default 20000-character preview, or use null for the full response",
     }
 
     def effects(self, args: Dict[str, Any]) -> tuple[ToolEffect, ...]:
@@ -143,7 +143,9 @@ class WebFetch(Tool):
         if not re.match(r"^https?://", url):
             url = "https://" + url
 
-        max_chars = max(1, min(int(args.get("max_chars") or 20000), 100000))
+        max_chars = args.get("max_chars", 20000)
+        if max_chars is not None:
+            max_chars = max(1, int(max_chars))
 
         try:
             import requests
@@ -173,12 +175,8 @@ class WebFetch(Tool):
 
         try:
             chunks = []
-            size = 0
             try:
                 for chunk in resp.iter_content(16384):
-                    size += len(chunk)
-                    if size > 1024 * 1024:
-                        raise ValueError("URL response exceeds 1 MiB; import a smaller text source")
                     chunks.append(chunk)
             finally:
                 resp.close()
@@ -199,7 +197,7 @@ class WebFetch(Tool):
         text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
         truncated = False
-        if len(text) > max_chars:
+        if max_chars is not None and len(text) > max_chars:
             text = text[:max_chars]
             truncated = True
 

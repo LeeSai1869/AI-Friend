@@ -69,9 +69,10 @@ files, HTTP(S) URLs and pasted text, in addition to workspace files. Previewing
 uses capability routing; when automatic classification fails, manual review
 remains available with an explicit warning. The server retains the complete
 source per authenticated session and submits that source rather than its preview.
-Intake content is limited to 512 KiB and 50 files. Binary documents, images and
-video need extraction adapters; they are not treated as readable text. URL fetching
-uses Guard and bounded HTTP text/HTML extraction, without requiring html2text.
+Memory Intake has no application-imposed file-count or content-size cap.
+Binary documents, images and video need extraction adapters; they are not treated
+as readable text. URL fetching uses Guard and HTTP text/HTML extraction, without
+requiring html2text.
 Imported proposals retain source provenance and hashes. Submission is not a claim
 of verified knowledge: the result displays the actual learning decision and reason.
 

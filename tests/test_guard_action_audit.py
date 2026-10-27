@@ -267,7 +267,7 @@ class GuardActionAuditTests(unittest.TestCase):
                 ClassifiedEffect(
                     action="memory",
                     scope="service",
-                    target="memory:knowledge_proposal",
+                    target="memory:raw_intake",
                 ),
             ),
         )

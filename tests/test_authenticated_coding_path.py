@@ -60,6 +60,10 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 })
             elif 'Answer strictly with JSON in one of these shapes' in text:
                 output = json.dumps({'kind': 'code_change', 'files': ['answer.py'], 'summary': 'Create answer() returning 42'})
+            elif 'Render a clear, concise response for the human' in text:
+                output = 'Created answer.py and the syntax check succeeded.'
+            elif 'Audit the Chat draft against the objective' in text:
+                output = json.dumps({'approved': True, 'issues': []})
             else:
                 output = json.dumps({'writes': [{'path': 'answer.py', 'content': 'def answer():\n    return 42\n'}]})
             self.send_json({'message': {'content': output}, 'done': True})
@@ -101,7 +105,16 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 await ws.send(json.dumps({'op': 'login', 'username': 'test_trainer', 'password': 'Integration-test-password-2'}))
                 login = json.loads(await asyncio.wait_for(ws.recv(), 10))
                 assert login['op'] == 'login_result' and login['ok'], login
-                await ws.send(json.dumps({'text': 'Create answer.py with answer() returning 42', 'intent': 'work'}))
+                await ws.send(json.dumps({
+                    'text': 'Create answer.py with answer() returning 42',
+                    'intent': 'work',
+                    'context': {
+                        'active_window': {
+                            'kind': 'regular',
+                            'surface': 'chat',
+                        },
+                    },
+                }))
                 while True:
                     result = json.loads(await asyncio.wait_for(ws.recv(), 15))
                     if result.get('role') == 'mind' and result.get('chat_id'):
@@ -116,6 +129,17 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 # Shared model routing is used by both semantic reasoning and Coding.
                 assert any('PROPOSE a semantic' in prompt for prompt in prompts)
                 assert any('Write the change' in prompt for prompt in prompts)
+                semantic_prompt = next(
+                    prompt for prompt in prompts
+                    if 'PROPOSE a semantic' in prompt
+                )
+                supplied_context = json.loads(
+                    semantic_prompt.rsplit('\n', 1)[-1]
+                )['supplied_context']
+                assert supplied_context['observations']['active_window'] == {
+                    'kind': 'regular',
+                    'surface': 'chat',
+                }
                 # Learning stays proposal-based, and system activity creates no Raw entry.
                 assert all(entry.memory_class != 'raw' for entry in isolated_memory.store.iter_entries())
                 mind = mind_instances[-1]

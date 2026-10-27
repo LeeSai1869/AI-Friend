@@ -9,7 +9,12 @@ from typing import Any, Dict, List, Optional
 
 KIND_SELF_DIRECTED = "self_directed"
 KIND_REMOVAL = "removal"
-VALID_KINDS = frozenset({KIND_SELF_DIRECTED, KIND_REMOVAL})
+KIND_FEATURE_EXPANSION = "feature_expansion"
+VALID_KINDS = frozenset({
+    KIND_SELF_DIRECTED,
+    KIND_REMOVAL,
+    KIND_FEATURE_EXPANSION,
+})
 
 VALID_STATUSES = frozenset({
     "proposed", "under_audit", "audit_passed", "audit_failed",
@@ -95,6 +100,10 @@ class ProposalQueue:
 
     def record_audit(self, pid: str, *, verdict: Dict[str, Any]) -> Dict[str, Any]:
         p = self._require(pid)
+        if p.status not in {"proposed", "audit_needs_evidence", "audit_failed"}:
+            raise ProposalContractError(
+                f"status {p.status!r} cannot be audited"
+            )
         p.audit_verdict = dict(verdict)
         v = str(verdict.get("verdict") or "").strip()
         p.status = ("audit_passed" if v == "pass"

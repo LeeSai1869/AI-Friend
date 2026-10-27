@@ -69,6 +69,33 @@ def test_verified_contextual_evidence_can_reorder_bootstrap(tmp_path):
     assert r._candidates({'domain': 'future', 'capability': 'reason'}, {'b': 4})[0].key == 'b'
 
 
+def test_explicit_task_quality_is_not_overridden_by_general_profile(tmp_path):
+    r = router(tmp_path, {
+        'task-scored': model(
+            best_tasks=[{'capability': 'answer', 'quality': 0.95}],
+            problem_solving={'prose_strength': 0.2},
+        ),
+        'profile-scored': model(problem_solving={'prose_strength': 0.8}),
+    })
+    candidates = r._candidates({'domain': 'chat', 'capability': 'answer'})
+    assert candidates[0].key == 'task-scored'
+    assert candidates[0].resource['task_quality']['answer'] == 0.95
+
+
+def test_chat_answer_uses_highest_recorded_instruction_following_benchmark():
+    from pathlib import Path
+
+    registry_path = Path(__file__).resolve().parents[1] / 'section_7_models' / 'models_registry.yaml'
+    r = ModelRouter(registry_path, availability_probe=lambda _: True)
+    candidates = r._candidates({
+        'domain': 'chat',
+        'capability': 'answer',
+        'traits': ['instruction_following', 'prose'],
+    })
+    assert candidates[0].key == 'qwen3.5_27b'
+    assert candidates[0].resource['task_quality']['answer'] == 0.95
+
+
 def test_ollama_host_is_runtime_configuration(monkeypatch):
     monkeypatch.setenv('OLLAMA_HOST', 'http://model-host:11434')
     provider = build_resource_provider(model())

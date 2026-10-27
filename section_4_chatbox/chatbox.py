@@ -10,7 +10,7 @@ The chatbox does three things:
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List
 
 
 class Chatbox:
@@ -37,6 +37,63 @@ class Chatbox:
         if not answer and default is not None:
             return default
         return answer
+
+    def render_for_review(
+        self,
+        *,
+        objective: str,
+        communication_intent: Dict[str, Any],
+        verified_evidence: List[Any],
+        request_model: Callable[[List[Dict[str, str]]], Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Draft user-facing language through Chat's model capability."""
+        import json
+
+        draft = request_model([
+            {
+                "role": "system",
+                "content": (
+                    "Write in the first person, speaking directly to the person who asked. "
+                    "Answer their request using only the verified evidence provided, and reply in the language they wrote in. "
+                    "Never mention drafts, review, approval, Central Mind or the evidence format. "
+                    "Do not state what you can or cannot do unless the evidence says so. "
+                    "If the evidence does not contain what is needed, say plainly which information you do not have and what the person could provide. "
+                    "Do not invent actions, files, artifacts, test results or certainty, and preserve any failures or limitations the evidence reports. "
+                    "If communication_intent contains reviewer_feedback, correct exactly those problems, or say plainly what you are unsure about."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "objective": objective,
+                    "communication_intent": communication_intent,
+                    "verified_evidence": verified_evidence,
+                }, ensure_ascii=False, default=str),
+            },
+        ])
+        if isinstance(draft, dict):
+            subjects = [e.get("subject") for e in verified_evidence if isinstance(e, dict)][:8]
+            try:
+                import os
+                import time
+                from pathlib import Path
+                directory = Path(os.environ.get("AI_FRIEND_STATE_DIR") or ".").expanduser() / "debug"
+                directory.mkdir(parents=True, exist_ok=True)
+                record = {
+                    "ts": round(time.time(), 3),
+                    "ok": draft.get("ok"),
+                    "model": draft.get("model"),
+                    "evidence_count": len(verified_evidence),
+                    "evidence_subjects": subjects,
+                    "evidence": json.dumps(verified_evidence, ensure_ascii=False, default=str)[:3000],
+                    "draft": str(draft.get("output", ""))[:800],
+                    "attempts": draft.get("attempts"),
+                }
+                with (directory / "chat_render.jsonl").open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+            except Exception as exc:
+                print(f"[chat-debug] could not write render record: {exc}")
+        return draft
 
     def notify(self, message: str) -> None:
         print()

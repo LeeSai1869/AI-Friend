@@ -111,7 +111,11 @@ class ModelRouter:
             profile = entry.get("problem_solving") or {}
             profile_key = {"reason": "multi_step_quality", "plan": "planning_quality",
                            "write": "code_strength", "test": "code_strength", "debug": "code_strength", "answer": "prose_strength"}.get(capability)
-            if profile_key and isinstance(profile, dict):
+            if (
+                profile_key
+                and capability not in resource["task_quality"]
+                and isinstance(profile, dict)
+            ):
                 resource["task_quality"][capability] = profile.get(profile_key, 0)
             resources[key] = resource
         # Memory's current interface returns counts of verified successful uses,
@@ -126,6 +130,48 @@ class ModelRouter:
                               learned_scores=learned)
 
     def fulfill(self, *, requirement, call_fn, messages, source_scores=None, max_attempts=None, **context):
+        import time
+        started = time.time()
+        result = self._fulfill(requirement=requirement, call_fn=call_fn, messages=messages,
+                               source_scores=source_scores, max_attempts=max_attempts, **context)
+        self._debug_record(requirement, result, time.time() - started, source_scores)
+        return result
+
+    def _debug_record(self, requirement, result, elapsed, source_scores=None):
+        """Append one compact record per model request to the local state debug folder."""
+        try:
+            import os
+            import time
+            base = os.environ.get("AI_FRIEND_STATE_DIR")
+            if not base:
+                return
+            directory = Path(base).expanduser() / "debug"
+            directory.mkdir(parents=True, exist_ok=True)
+            record = {
+                "ts": round(time.time(), 3),
+                "elapsed_s": round(elapsed, 2),
+                "domain": requirement.get("domain"),
+                "capability": requirement.get("capability"),
+                "structured": requirement.get("structured_output"),
+                "ok": result.get("ok"),
+                "model": result.get("model"),
+                "attempts": result.get("attempts"),
+                "output": str(result.get("output", ""))[:12000],
+            }
+            try:
+                record["ranking"] = [
+                    {"model": c.key, "score": round(c.score, 1), "reasons": list(c.reasons)}
+                    for c in self._candidates(requirement, source_scores)[:4]
+                ]
+            except Exception as exc:
+                record["ranking"] = [{"error": str(exc)[:120]}]
+            record["source_scores"] = dict(source_scores or {})
+            with (directory / "model_calls.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        except Exception:
+            pass
+
+    def _fulfill(self, *, requirement, call_fn, messages, source_scores=None, max_attempts=None, **context):
         routing = self.registry.get("routing") or {}
         budget = max(1, min(int(max_attempts or routing.get("max_attempts_per_capability", 3)), 10))
         attempts = []
@@ -149,6 +195,7 @@ class ModelRouter:
             try:
                 resource = dict(candidate.resource)
                 generation = dict(routing.get("structured_generation") or {}) if requirement.get("structured_output") else {}
+                generation.update((routing.get("generation_by_capability") or {}).get(str(requirement.get("capability") or "")) or {})
                 generation.update(resource.get("generation") or {})
                 generation["structured_output"] = requirement.get("structured_output")
                 declared_context = resource.get("context_tokens")

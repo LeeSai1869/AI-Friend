@@ -60,18 +60,31 @@ class Reasoner:
         if self.memory is None:
             return []
 
-        try:
-            rows = self.memory.recall(
-                query=objective,
-                limit=self.DEFAULT_RECALL_LIMIT,
-            )
-        except Exception:
-            return []
+        raw_rows = self.memory.recall(
+            query=objective,
+            memory_class="raw",
+            limit=self.DEFAULT_RECALL_LIMIT,
+        )
+        rows = self.memory.recall(
+            query=objective,
+            limit=self.DEFAULT_RECALL_LIMIT,
+        )
+
+        combined = []
+        seen = set()
+        for item in list(raw_rows or []) + list(rows or []):
+            if not isinstance(item, dict):
+                continue
+            memory_id = item.get("id")
+            if memory_id and memory_id in seen:
+                continue
+            if memory_id:
+                seen.add(memory_id)
+            combined.append(item)
 
         return [
             dict(item)
-            for item in rows
-            if isinstance(item, dict)
+            for item in combined[:self.DEFAULT_RECALL_LIMIT]
         ]
 
     @staticmethod
@@ -122,6 +135,9 @@ class Reasoner:
 
             for row in execution_rows or []:
                 if not isinstance(row, dict):
+                    continue
+                if str(row.get("kind") or "").strip().lower() != "domain":
+                    # Tools are used by domains through the Broker; they are not plan steps.
                     continue
 
                 normalized = dict(row)
@@ -284,15 +300,65 @@ class Reasoner:
             proposal.get("rationale")
         )
 
+    def _note_drop(self, step_id, component, capability, reason) -> None:
+        """Remember why a proposed step was not accepted, for diagnosis and re-planning."""
+        rows = getattr(self, "last_dropped_steps", None)
+        if rows is None:
+            rows = []
+            self.last_dropped_steps = rows
+        rows.append({
+            "step_id": str(step_id or ""),
+            "component": str(component or ""),
+            "capability": str(capability or ""),
+            "reason": reason,
+        })
+
     def _validate_steps(
         self,
         rows: List[Dict[str, Any]],
         objective: str,
+        *,
+        evidence: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Validate final execution proposals against trusted Inventory."""
 
         valid: List[Dict[str, Any]] = []
         known_ids = set()
+        consulted_evidence = {
+            (
+                str(item.get("source") or "").strip(),
+                str((item.get("metadata") or {}).get("capability") or "").strip(),
+            )
+            for item in (evidence or [])
+            if isinstance(item, dict)
+            and isinstance(item.get("metadata"), dict)
+        }
+        evidence_step_ids = set()
+        for index, row in enumerate(rows or []):
+            if not isinstance(row, dict) or row.get("kind", "domain") != "domain":
+                continue
+
+            component = str(row.get("component") or "").strip()
+            capability = str(row.get("capability") or "").strip()
+            info = getattr(
+                self.inventory,
+                "get",
+                lambda _name: None,
+            )(component) if self.inventory is not None else None
+            manifest = getattr(info, "manifest", {}) or {}
+            declarations = (
+                manifest.get("evidence_capabilities", {})
+                if isinstance(manifest, dict)
+                else {}
+            )
+            if (
+                isinstance(declarations, dict)
+                and capability in declarations
+                and (component, capability) in consulted_evidence
+            ):
+                evidence_step_ids.add(str(
+                    row.get("step_id") or f"step_{index + 1}"
+                ).strip())
 
         for index, row in enumerate(rows or []):
             if not isinstance(row, dict):
@@ -325,6 +391,8 @@ class Reasoner:
                 capability = str(capability or "").strip()
 
                 if not component or not capability:
+                    self._note_drop(step_id, component, capability,
+                                    "the step names no component or capability")
                     continue
 
                 if self.inventory is None:
@@ -346,6 +414,8 @@ class Reasoner:
                     trusted = False
 
                 if not trusted:
+                    self._note_drop(step_id, component, capability,
+                                    "the component and capability pair is not in the trusted catalog")
                     continue
 
                 info = getattr(
@@ -358,11 +428,18 @@ class Reasoner:
                     info is None
                     or getattr(info, "kind", None) != "domain"
                 ):
+                    self._note_drop(step_id, component, capability,
+                                    "the component is not a domain; tools and models are used by domains and are not planned as steps")
                     continue
 
             dependencies = self._strings(
                 row.get("depends_on")
             )
+            dependencies = [
+                dependency
+                for dependency in dependencies
+                if dependency not in evidence_step_ids
+            ]
 
             # Dependencies may only point backward to already accepted steps.
             if any(
@@ -414,6 +491,68 @@ class Reasoner:
     # Investigation
     # ------------------------------------------------------------------
 
+    def _gather_ambient_evidence(self, state: ReasoningState) -> None:
+        """Gather evidence that domains declare as ambient.
+
+        A domain marks a read-only evidence capability ``ambient`` when it is
+        cheap and relevant to every turn (for example live project state).
+        Central Mind does not interpret the evidence; it only ensures the
+        understanding step never has to guess at it.
+        """
+        if not self.consultation.available():
+            return
+
+        proposals = []
+        for row in self._semantic_catalog():
+            metadata = row.get("metadata")
+            if (
+                row.get("purpose") == "evidence"
+                and isinstance(metadata, dict)
+                and metadata.get("read_only") is True
+                and metadata.get("ambient") is True
+            ):
+                proposals.append({
+                    "component": row["component"],
+                    "capability": row["capability"],
+                    "subject": row["capability"],
+                    "question": (
+                        "Provide your current read-only ambient evidence for "
+                        "this turn. Do not execute the requested task. "
+                        "Objective: " + state.objective[:1000]
+                    ),
+                    "rationale": ["the domain declares this evidence as ambient"],
+                })
+
+        partition = self.discovery.trusted_consultations(
+            proposals,
+            already_consulted=[],
+        )
+
+        for item in partition.get("trusted", []):
+            result = self.consultation.request(
+                component=item["component"],
+                capability=item["capability"],
+                subject=item.get("subject", ""),
+                question=item["question"],
+                reasoning_state=state.as_dict(),
+                context=state.supplied_context,
+            )
+            state.investigation_results.append(dict(result))
+            if not result.get("ok"):
+                continue
+            state.add_evidence(
+                source_kind="domain",
+                source=item["component"],
+                subject=item.get("subject") or item["capability"],
+                value=result.get("evidence"),
+                confidence=1.0,
+                metadata={
+                    "capability": item["capability"],
+                    "read_only_consultation": True,
+                    "ambient": True,
+                },
+            )
+
     def _investigate(
         self,
         state: ReasoningState,
@@ -428,10 +567,68 @@ class Reasoner:
         if not isinstance(proposed, list):
             proposed = []
 
+        proposed = [item for item in proposed if isinstance(item, dict)]
+
+        def without_previous_results(items):
+            previous = {
+                (
+                    str(result.get("component") or "").strip().casefold(),
+                    str(result.get("capability") or "").strip().casefold(),
+                    str(result.get("subject") or "").strip().casefold(),
+                )
+                for result in state.investigation_results
+                if isinstance(result, dict)
+            }
+            return [
+                item
+                for item in items
+                if (
+                    str(item.get("component") or "").strip().casefold(),
+                    str(item.get("capability") or "").strip().casefold(),
+                    str(item.get("subject") or "").strip().casefold(),
+                ) not in previous
+            ]
+
         partition = self.discovery.trusted_consultations(
-            proposed,
+            without_previous_results(proposed),
             already_consulted=state.consulted_components,
         )
+
+        if not partition.get("trusted") and state.missing_information:
+            unresolved = ", ".join(state.missing_information[:8])
+            objective = state.objective[:2000]
+            evidence_capabilities = [
+                row
+                for row in self._semantic_catalog()
+                if row.get("purpose") == "evidence"
+                and isinstance(row.get("metadata"), dict)
+                and row["metadata"].get("read_only") is True
+            ][:state.max_consultations]
+            fallback = [
+                {
+                    "component": row["component"],
+                    "capability": row["capability"],
+                    "subject": state.missing_information[0],
+                    "question": (
+                        "For the user's objective, provide any relevant "
+                        "trusted evidence this declared read-only capability "
+                        "can supply. Do not execute the requested task. "
+                        f"Objective: {objective}. "
+                        f"Unresolved information: {unresolved}."
+                    ),
+                    "rationale": [
+                        "A material information need remains unresolved and "
+                        "the model did not propose a trusted consultation."
+                    ],
+                }
+                for row in evidence_capabilities
+            ]
+            fallback_partition = self.discovery.trusted_consultations(
+                without_previous_results(fallback),
+                already_consulted=state.consulted_components,
+            )
+            partition["trusted"].extend(fallback_partition["trusted"])
+            partition["rejected"].extend(fallback_partition["rejected"])
 
         for rejected in partition.get("rejected", []):
             reason = str(
@@ -496,9 +693,28 @@ class Reasoner:
         if not isinstance(needs, list):
             needs = []
 
+        evidence = state.evidence_payload()
+        evidence_subjects = {
+            " ".join(str(item.get("subject") or "").split()).casefold():
+                str(item.get("subject") or "").strip()
+            for item in evidence
+            if isinstance(item, dict) and str(item.get("subject") or "").strip()
+        }
+        normalized_needs = []
+        for item in needs:
+            if not isinstance(item, dict):
+                continue
+            need = dict(item)
+            subject = " ".join(
+                str(need.get("subject") or "").split()
+            ).casefold()
+            if subject in evidence_subjects:
+                need["subject"] = evidence_subjects[subject]
+            normalized_needs.append(need)
+
         unresolved = self.discovery.unresolved_material_needs(
-            needs,
-            state.evidence_payload(),
+            normalized_needs,
+            evidence,
         )
 
         if not unresolved:
@@ -530,6 +746,23 @@ class Reasoner:
             if attribute in unresolved_subjects:
                 questions.append(dict(item))
 
+        asked_attributes = {
+            str(item.get("attribute") or "").strip()
+            for item in questions
+        }
+        for item in unresolved:
+            subject = str(item.get("subject") or "").strip()
+            if subject and subject not in asked_attributes:
+                questions.append({
+                    "attribute": subject,
+                    "question": (
+                        f"I don't have enough trusted information about "
+                        f"{subject}. Could you clarify it?"
+                    ),
+                    "options": [],
+                    "default": None,
+                })
+
         state.missing_information = sorted(
             subject
             for subject in unresolved_subjects
@@ -552,12 +785,15 @@ class Reasoner:
         self,
         state: ReasoningState,
     ) -> CognitivePlan:
+        self.last_evidence = state.evidence_payload()
         steps = []
 
-        for row in self._validate_steps(
+        validated = self._validate_steps(
             state.candidate_steps,
             state.objective,
-        ):
+            evidence=state.evidence_payload(),
+        )
+        for row in validated:
             steps.append(
                 CognitiveStep(
                     step_id=row["step_id"],
@@ -618,13 +854,11 @@ class Reasoner:
             else {}
         )
 
-        recalled = self._recall(text) if text else []
+        self.last_dropped_steps = []
 
         state = ReasoningState(
             objective=text,
             supplied_context=supplied_context,
-            recalled_memory=recalled,
-            memory_ids=self._memory_ids(recalled),
             max_cycles=self.DEFAULT_MAX_CYCLES,
             max_consultations=self.DEFAULT_MAX_CONSULTATIONS,
         )
@@ -641,7 +875,22 @@ class Reasoner:
             state.rationale.append("the objective is empty")
             return self._to_plan(state)
 
+        try:
+            state.recalled_memory = self._recall(text)
+        except Exception as exc:
+            state.reasoning_error = (
+                f"Central Mind memory recall failed: {exc}"
+            )
+            state.rationale.append(
+                "reasoning stopped because shared Memory could not be checked"
+            )
+            return self._to_plan(state)
+        state.memory_ids = self._memory_ids(state.recalled_memory)
+
+        self._gather_ambient_evidence(state)
+
         prior: Optional[Dict[str, Any]] = None
+        replanned = False
 
         while state.can_continue():
             state.begin_cycle()
@@ -688,16 +937,47 @@ class Reasoner:
             if state.should_clarify:
                 break
 
+            drops_before = len(getattr(self, "last_dropped_steps", None) or [])
             validated = self._validate_steps(
                 state.candidate_steps,
                 state.objective,
+                evidence=state.evidence_payload(),
             )
+            new_drops = list(getattr(self, "last_dropped_steps", None) or [])[drops_before:]
 
             if validated:
                 state.candidate_steps = validated
                 state.missing_information = []
                 state.clarification_questions = []
                 break
+
+            if new_drops and not replanned:
+                # Steps were proposed but none passed validation. Tell the
+                # understanding resource why and ask once more before treating
+                # the request as plain communication.
+                replanned = True
+                feedback = [
+                    "step %s (%s / %s): %s" % (
+                        d["step_id"], d["component"] or "-", d["capability"] or "-", d["reason"],
+                    )
+                    for d in new_drops
+                ]
+                retry = self._semantic_proposal(
+                    state,
+                    prior={**proposal, "validation_feedback": feedback},
+                )
+                if not str(retry.get("error") or "").strip():
+                    revalidated = self._validate_steps(
+                        retry.get("candidate_steps") or [],
+                        state.objective,
+                        evidence=state.evidence_payload(),
+                    )
+                    if revalidated:
+                        self._assimilate_proposal(state, retry)
+                        state.candidate_steps = revalidated
+                        state.missing_information = []
+                        state.clarification_questions = []
+                        break
 
             # A pure communication result is legitimate when understanding
             # produced no executable domain work and no unresolved material

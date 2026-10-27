@@ -1,10 +1,23 @@
 # Section 3 - Memory
 
-Three memory classes: raw, tested, derived.
+Memory is persistent, file-backed state; it does not require a database.
+Entries are stored under three class folders:
+
+  - `Raw Memory/`
+  - `Tested Memory/`
+  - `Derived Memory/`
+
+Each memory is a separate JSON file. Raw entries use readable, unique
+non-sequential IDs. Tested and Derived entries use domain-prefixed sequential
+IDs. The app discovers entries across the three folders for shared indexing
+and recall.
+
+Existing flat entries under `entries/` are copied to their class folder on
+startup and left in place as a preserved legacy copy.
 
 Every entry has the same schema. It carries:
-  - a domain-prefixed ID
-  - a memory_class: raw | tested | derived
+  - an ID
+  - a `memory_class`: raw | tested | derived
   - originator list
   - tags (free-form)
   - success_count and failure_count
@@ -33,3 +46,6 @@ Derived entries additionally carry:
 
 derived_status reflects the state of the sources, not the entry's
 own counts. Scoring is identical for tested and derived entries.
+
+Trainer Memory Intake creates Raw entries; each submission creates a new
+entry. Intake does not overwrite an existing Raw entry.

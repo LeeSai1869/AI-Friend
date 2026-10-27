@@ -6,6 +6,8 @@ ORGAN = {
         "image_describe",
         "image_read_text",
         "pdf_read",
+        "document_read",
+        "video_read",
         "video_extract_frames",
     ],
     "security": {
@@ -18,6 +20,13 @@ ORGAN = {
             ],
             "pdf_read": [
                 "workspace.read",
+            ],
+            "document_read": [
+                "workspace.read",
+            ],
+            "video_read": [
+                "workspace.read",
+                "process.execute",
             ],
             "video_extract_frames": [
                 "workspace.read",
