@@ -13,11 +13,23 @@ class CodingExecution:
         self.cycle = CodingCycle()
         self.tester = Tester()
 
-    def run(self, *, caller, broker, prompt, allowed_files, tests=(), sources=()):
+    def run(self, *, caller, broker, prompt, allowed_files, tests=(), sources=(), acceptance_checks=()):
         attempts = []
         functional = None
         runner_unavailable = None
         snapshot = list(dict.fromkeys([*sources, *allowed_files]))
+        acceptance_overrides = {}
+        if acceptance_checks:
+            from .acceptance import acceptance_module
+            try:
+                name, code = acceptance_module(list(acceptance_checks))
+            except (ValueError, SyntaxError, TypeError) as exc:
+                return resource_question("invalid acceptance checks: " + str(exc))
+            if name in snapshot:
+                return resource_question("acceptance snapshot name conflicts with an existing file")
+            acceptance_overrides[name] = code
+            snapshot.append(name)
+            tests = [*tests, name]
         for revision in range(self.MAX_REPAIRS + 1):
             writes, candidate_attempts, blocked = self.cycle.generate(
                 caller=caller, prompt=prompt, allowed_files=set(allowed_files), broker=broker,
@@ -30,12 +42,15 @@ class CodingExecution:
                 break
             functional = self.tester.run(
                 broker=broker, paths=tests, sources=snapshot,
-                overrides={item['path']: item['content'] for item in writes},
+                overrides={**{item['path']: item['content'] for item in writes}, **acceptance_overrides},
             )
             attempts.append({'revision': revision, 'stage': 'candidate_tests', 'result': functional})
             if self.tester.passed(functional):
                 break
             if self.tester.unavailable(functional):
+                if acceptance_checks:
+                    return {**resource_question("a functional runtime is required to verify the planned acceptance checks"),
+                            "artifacts": [], "acceptance": {"status": "not_performed"}, "attempts": attempts}
                 # The runner itself is unavailable: apply after the syntax check
                 # and report honestly that functional tests did not run.
                 runner_unavailable = functional.get('error') or 'functional test runner unavailable'
@@ -68,7 +83,9 @@ class CodingExecution:
         if tests and runner_unavailable is None:
             # Re-read the persisted files; candidate-only tests cannot prove the
             # actual write operation produced the intended implementation.
-            functional = self.tester.run(broker=broker, paths=tests, sources=snapshot)
+            functional = self.tester.run(broker=broker, paths=tests, sources=snapshot, overrides=acceptance_overrides)
         return {'status': 'executed', 'applied': applied, 'writes': writes, 'syntax': syntax,
                 'functional_tests': functional, 'attempts': attempts,
-                'functional_unavailable': runner_unavailable}
+                'functional_unavailable': runner_unavailable,
+                'acceptance': {'status': ('passed' if self.tester.passed(functional) else 'failed') if acceptance_checks and functional else 'not_performed',
+                               'check_ids': [item['id'] for item in acceptance_checks]}}

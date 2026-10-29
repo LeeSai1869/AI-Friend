@@ -1,4 +1,13 @@
 ORGAN = {
+    "acceptance_check_kinds": ["python_call", "python_signature", "python_cli"],
+    "acceptance_check_contracts": {
+        "python_call": {"description": "Check a function against an explicit input/output example.",
+            "payload": {"module": "Python module name", "function": "function name", "args": "JSON argument list", "kwargs": "JSON keyword mapping", "expected": "expected JSON result"}},
+        "python_signature": {"description": "Check the exact declared parameters and annotations.",
+            "payload": {"module": "Python module name", "function": "function name", "signature": "signature, e.g. (entries: list[str]) -> int"}},
+        "python_cli": {"description": "Check an explicitly requested command-line interface.",
+            "payload": {"script": "relative .py path", "args": "argument strings", "expected_exit": "integer exit code", "stdout_equals": "optional exact expected output"}},
+    },
     "name": "coder",
     "domain_key": "coding",
     "kind": "domain",

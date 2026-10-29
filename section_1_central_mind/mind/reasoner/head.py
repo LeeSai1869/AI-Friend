@@ -142,6 +142,9 @@ class Reasoner:
 
                 normalized = dict(row)
                 normalized["purpose"] = "execution"
+                info = self.inventory.get(str(row.get("component") or ""))
+                manifest = getattr(info, "manifest", {}) or {}
+                normalized["acceptance_check_contracts"] = dict(manifest.get("acceptance_check_contracts", {}))
                 rows.append(normalized)
 
         all_fn = getattr(self.inventory, "all", None)
@@ -243,6 +246,8 @@ class Reasoner:
         state.requirements = self._strings(
             proposal.get("requirements")
         )
+        checks = proposal.get("acceptance_checks", [])
+        state.acceptance_checks = list(checks) if isinstance(checks, list) else []
         state.constraints = self._strings(
             proposal.get("constraints")
         )
@@ -370,6 +375,10 @@ class Reasoner:
             ).strip()
 
             if not step_id or step_id in known_ids:
+                self._note_drop(step_id, row.get("component"), row.get("capability"), "duplicate or empty step identity")
+                continue
+            if step_id in evidence_step_ids:
+                # Ambient evidence already fulfilled this read-only request.
                 continue
 
             kind = str(
@@ -378,6 +387,7 @@ class Reasoner:
             ).strip().lower()
 
             if kind not in {"domain", "communicate"}:
+                self._note_drop(step_id, row.get("component"), row.get("capability"), "unknown step kind")
                 continue
 
             component = row.get("component")
@@ -446,6 +456,7 @@ class Reasoner:
                 dependency not in known_ids
                 for dependency in dependencies
             ):
+                self._note_drop(step_id, component, capability, "dependency does not identify an accepted prior step")
                 continue
 
             valid.append({
@@ -603,12 +614,19 @@ class Reasoner:
                 if row.get("purpose") == "evidence"
                 and isinstance(row.get("metadata"), dict)
                 and row["metadata"].get("read_only") is True
+                and not any(
+                    item.get("source") == row["component"]
+                    and (item.get("metadata") or {}).get("capability") == row["capability"]
+                    for item in state.evidence_payload()
+                )
             ][:state.max_consultations]
             fallback = [
                 {
                     "component": row["component"],
                     "capability": row["capability"],
-                    "subject": state.missing_information[0],
+                    # The capability supplies facts about itself. Merely
+                    # calling it must not claim an unrelated human need was resolved.
+                    "subject": row["capability"],
                     "question": (
                         "For the user's objective, provide any relevant "
                         "trusted evidence this declared read-only capability "
@@ -815,6 +833,7 @@ class Reasoner:
             recalled_memory=list(state.recalled_memory),
             memory_ids=list(state.memory_ids),
             requirements=list(state.requirements),
+            acceptance_checks=list(state.acceptance_checks),
             constraints=list(state.constraints),
             ambiguities=list(state.ambiguities),
             missing_information=list(
@@ -945,7 +964,7 @@ class Reasoner:
             )
             new_drops = list(getattr(self, "last_dropped_steps", None) or [])[drops_before:]
 
-            if validated:
+            if validated and not new_drops:
                 state.candidate_steps = validated
                 state.missing_information = []
                 state.clarification_questions = []
@@ -967,17 +986,23 @@ class Reasoner:
                     prior={**proposal, "validation_feedback": feedback},
                 )
                 if not str(retry.get("error") or "").strip():
+                    retry_drops_before = len(self.last_dropped_steps)
                     revalidated = self._validate_steps(
                         retry.get("candidate_steps") or [],
                         state.objective,
                         evidence=state.evidence_payload(),
                     )
-                    if revalidated:
+                    if revalidated and len(self.last_dropped_steps) == retry_drops_before:
                         self._assimilate_proposal(state, retry)
                         state.candidate_steps = revalidated
                         state.missing_information = []
                         state.clarification_questions = []
                         break
+
+            if new_drops:
+                state.reasoning_error = "The plan contains invalid action steps after one repair attempt; no action was executed."
+                state.candidate_steps = []
+                break
 
             # A pure communication result is legitimate when understanding
             # produced no executable domain work and no unresolved material

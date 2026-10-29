@@ -56,6 +56,17 @@ class ChatRuntime:
         chat.save()
         return chat
 
+    def retry_reply(self, chat_id, task_id):
+        chat = self.store.load(str(chat_id or ""))
+        if chat is None or not any(turn.outcome.get("task_id") == task_id for turn in chat.turns):
+            return {"status": "error", "error": "No matching task exists in this chat."}
+        result = self.mind.retry_communication(task_id)
+        text = self._final_text(result)
+        if text:
+            chat.add_turn("mind", text, action="reply_retry", outcome=result.get("outcome"))
+            chat.save()
+        return {**result, "text": text, "chat_id": chat.chat_id}
+
     @staticmethod
     def _context_packet(
         *,
@@ -166,6 +177,7 @@ class ChatRuntime:
                     "text": turn.text,
                     "ts": turn.ts,
                     "action": turn.action,
+                    "outcome": turn.outcome,
                 }
                 for turn in chat.turns
             ],
@@ -234,9 +246,11 @@ class ChatRuntime:
             attachments=attachment_rows,
             context=context,
         )
+        packet["task"] = {"original_objective": chat.pending_clarification.get("objective") or user_text}
         mind_input = user_text
         if not mind_input and attachment_rows:
             mind_input = "Please review the attached file(s) and explain what they contain."
+            packet["task"]["original_objective"] = mind_input
 
         try:
             result = self.mind.process(
@@ -297,6 +311,7 @@ class ChatRuntime:
                 "mind",
                 answer,
                 action="question" if status == "needs_answers" else "answer",
+                outcome=result.get("outcome"),
             )
 
         if status == "needs_answers":
@@ -320,7 +335,7 @@ class ChatRuntime:
             "cognition": result.get("cognition", {}),
         }
 
-        for field in ("domain", "capability", "provider", "execution_model", "source_model", "source_llm", "artifacts", "memory_ids"):
+        for field in ("task_id", "outcome", "domain", "capability", "provider", "execution_model", "source_model", "source_llm", "artifacts", "memory_ids"):
             if field in result:
                 response[field] = result[field]
 

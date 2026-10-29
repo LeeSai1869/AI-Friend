@@ -1,5 +1,6 @@
 import {
   send,
+  retryCommunication,
   onMessage,
   onAuthenticated,
   onAuthStateChange,
@@ -131,6 +132,7 @@ onMessage((msg) => {
           domain: msg.domain,
           capability: msg.capability,
           artifacts: msg.artifacts,
+          outcome: msg.outcome,
         }
       : null,
   );
@@ -148,4 +150,11 @@ onMessage((msg) => {
 onAuthenticated(() => {
   leftPanel.requestInventory();
   leftPanel.requestChats();
+});
+
+window.addEventListener("retry-communication", event => {
+  if (pendingTurn) return;
+  pendingTurn = retryCommunication(event.detail.taskId, event.detail.chatId);
+  chatInput.setBusy(true);
+  conversation.appendToolStatus("Retrying explanation; file operations will not repeat…");
 });

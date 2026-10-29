@@ -96,6 +96,9 @@ class CognitivePlan:
     # Reasoning failures are explicit cognitive failures. They must never be
     # silently converted into "no component claimed the request".
     reasoning_error: Optional[str] = None
+    task_id: str = ""
+    original_objective: str = ""
+    acceptance_checks: List[Dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)

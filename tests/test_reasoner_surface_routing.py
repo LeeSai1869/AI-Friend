@@ -461,3 +461,48 @@ def test_reasoner_accepts_a_validated_multi_domain_plan():
         "coder",
         "languages",
     ]
+
+
+def test_invalid_action_cannot_be_hidden_by_a_valid_communication_step():
+    from types import SimpleNamespace
+    from section_1_central_mind.mind.reasoner import Reasoner
+    info = SimpleNamespace(name='worker',kind='domain',manifest={},capabilities=['perform'])
+    inventory = SimpleNamespace(all=lambda:[info],get=lambda name:info if name=='worker' else None,
+        validate_capability=lambda component,capability:component=='worker' and capability=='perform',
+        capability_catalog=lambda:[{'component':'worker','kind':'domain','capability':'perform'}])
+    calls=[]
+    def semantic(**kwargs):
+        calls.append(kwargs)
+        return json.dumps({'objective_summary':'perform a task','requirements':[],'constraints':[],
+            'information_needs':[],'consultations':[], 'clarification_candidates':[],
+            'candidate_steps':[
+                {'step_id':'broken','kind':'domain','component':'worker','capability':'not-declared'},
+                {'step_id':'say','kind':'communicate','depends_on':[]}],
+            'understanding_confidence':.9})
+    plan=Reasoner(inventory=inventory,semantic_router=semantic).plan('Perform a task')
+    assert plan.reasoning_error and not plan.steps
+    assert len(calls)==2
+    assert 'validation_feedback' in calls[-1]['messages'][0]['content']
+
+
+def test_generic_project_facts_do_not_resolve_an_unknown_user_choice():
+    from types import SimpleNamespace
+    from section_1_central_mind.mind.reasoner import Reasoner
+    from section_1_central_mind.mind.resource_socket import ResourceSocket, ResourceRequirement
+    info=SimpleNamespace(name='worker',kind='domain',capabilities=['perform'],manifest={
+        'evidence_capabilities':{'context':{'description':'Available workspace facts','read_only':True}}})
+    inventory=SimpleNamespace(all=lambda:[info],get=lambda _:info,
+        capability_catalog=lambda:[{'component':'worker','kind':'domain','capability':'perform'}],
+        validate_capability=lambda component,capability:capability=='perform')
+    def semantic(**kwargs):
+        return json.dumps({'objective_summary':'Use the value I want','requirements':[],
+            'information_needs':[{'subject':'desired value','reason':'unknown user choice','material':True}],
+            'clarification_candidates':[{'attribute':'desired value','question':'What value do you want?'}],
+            'candidate_steps':[],'consultations':[]})
+    socket=ResourceSocket()
+    socket.connect('domain',lambda **kwargs:{'status':'ok','evidence':{'project_open':True}})
+    reasoner=Reasoner(inventory=inventory,semantic_router=semantic,resource_socket=socket,requirement_factory=ResourceRequirement)
+    plan=reasoner.plan('Use the value I want')
+    assert plan.should_clarify
+    assert plan.clarification_questions[0]['question']=='What value do you want?'
+    assert all(item['subject'] != 'desired value' for item in reasoner.last_evidence)

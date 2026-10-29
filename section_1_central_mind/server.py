@@ -1235,6 +1235,18 @@ async def handle_client(
                     }))
                     continue
 
+                if op == "retry_communication":
+                    runtime = ChatRuntime(mind, project_root, owner=account["username"])
+                    result = await asyncio.to_thread(runtime.retry_reply, data.get("chat_id"), data.get("task_id"))
+                    await websocket.send(json.dumps({
+                        "role": "mind", "request_id": data.get("request_id"),
+                        "status": result.get("status"), "text": result.get("text") or result.get("error", "Explanation retry failed."),
+                        "error": result.get("error"), "chat_id": result.get("chat_id"),
+                        "task_id": result.get("task_id"), "outcome": result.get("outcome"),
+                        "artifacts": result.get("artifacts", []),
+                    }))
+                    continue
+
                 # ---- chat message ---------------------------------------------
                 text = str(data.get("text") or "").strip()
                 intent = data.get("intent", "ask")
@@ -1298,7 +1310,7 @@ async def handle_client(
 
                     if runtimes is not None:
                         await runtimes.publish(session_token, {"op": "chats_changed"})
-                    if result.get("ok") and result.get("artifacts") and runtimes is not None:
+                    if result.get("artifacts") and runtimes is not None:
                         await runtimes.publish(session_token, {"op": "artifacts_changed", "artifacts": result["artifacts"]})
                     if result.get("ok") or (
                         result.get("status") == "error"
@@ -1318,6 +1330,8 @@ async def handle_client(
                             "source_llm": result.get("source_llm"),
                             "provider": result.get("provider"),
                             "execution_model": result.get("execution_model"),
+                            "task_id": result.get("task_id"),
+                            "outcome": result.get("outcome"),
                             "memory_ids": result.get("memory_ids", []),
                             "error": result.get("error"),
                         }))

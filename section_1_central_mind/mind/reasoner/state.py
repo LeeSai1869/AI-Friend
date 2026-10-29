@@ -42,6 +42,7 @@ class ReasoningState:
 
     objective_summary: str = ""
     requirements: List[str] = field(default_factory=list)
+    acceptance_checks: List[Dict[str, Any]] = field(default_factory=list)
     constraints: List[str] = field(default_factory=list)
     ambiguities: List[str] = field(default_factory=list)
     missing_information: List[str] = field(default_factory=list)

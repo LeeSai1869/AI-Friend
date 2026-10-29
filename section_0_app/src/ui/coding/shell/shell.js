@@ -2,6 +2,7 @@ import {
   onAuthenticated,
   onMessage,
   send,
+  retryCommunication,
   sendRaw,
   sendDomainRequest,
 } from "../../shared/auth_session/session.js";
@@ -208,6 +209,7 @@ onMessage((msg) => {
           domain: msg.domain,
           capability: msg.capability,
           artifacts: msg.artifacts,
+          outcome: msg.outcome,
         }
       : null,
   );
@@ -234,4 +236,11 @@ document
 onAuthenticated(() => {
   sendDomainRequest("coder", "project_status", {});
   requestChats();
+});
+
+window.addEventListener("retry-communication", event => {
+  if (pendingTurn) return;
+  pendingTurn = retryCommunication(event.detail.taskId, event.detail.chatId);
+  chatInput.setBusy(true);
+  conversation.appendToolStatus("Retrying explanation; file operations will not repeat…");
 });

@@ -175,7 +175,7 @@ class SemanticUnderstanding:
             "If prior_understanding contains validation_feedback, Central Mind rejected those candidate steps for the reasons listed. "
             "Propose corrected steps that use only components of kind domain from the trusted capability catalog, or a communicate step when no domain applies. "
             "Return JSON only with keys: objective_summary, requirements, "
-            "constraints, ambiguities, information_needs, consultations, "
+            "constraints, ambiguities, acceptance_checks, information_needs, consultations, "
             "candidate_steps, clarification_candidates, "
             "understanding_confidence, rationale. information_needs must be a "
             "list of objects with keys subject, reason, material. consultations "
@@ -187,6 +187,15 @@ class SemanticUnderstanding:
             "objects with keys attribute, question, options, default."
         )
 
+        system += (
+            " Preserve every explicit user requirement, exact signature and constraint. "
+            "acceptance_checks is optional: a list of objects with id, requirement_ids "
+            "(requirements are numbered R1, R2 in order), kind and payload. Use only "
+            "checks supported by the selected domain's declared acceptance_check_contracts. "
+            "Use that domain's payload specification; Mind assigns no domain-specific "
+            "meaning to payload fields. A check may name its executing step_id. "
+            "Extract expected behavior from explicit requirements; never invent ambiguous expected results."
+        )
         payload = {
             "objective": text,
             "supplied_context": dict(supplied_context or {}),
@@ -411,6 +420,7 @@ class SemanticUnderstanding:
                 })
 
         return {
+            "acceptance_checks": proposed.get("acceptance_checks", []),
             "objective_summary": str(
                 proposed.get("objective_summary")
                 or objective

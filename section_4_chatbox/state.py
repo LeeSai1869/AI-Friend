@@ -45,6 +45,7 @@ class Turn:
     action: str = ""         # answer | analyze | work | question
     verified: List[str] = field(default_factory=list)
     rejected: List[str] = field(default_factory=list)
+    outcome: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -359,6 +360,7 @@ class Chat:
         action: str = "",
         verified: Optional[List[str]] = None,
         rejected: Optional[List[str]] = None,
+        outcome: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.turns.append(
             Turn(
@@ -366,6 +368,7 @@ class Chat:
                 text=text,
                 ts=time.time(),
                 action=action,
+                outcome=dict(outcome or {}),
                 verified=verified or [],
                 rejected=rejected or [],
             )

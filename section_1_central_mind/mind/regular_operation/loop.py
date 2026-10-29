@@ -609,6 +609,14 @@ class CentralMind:
                 getattr(self.reasoner, "last_evidence", []) or []
             )
 
+        from ..task_contract import task_contract
+        task_context = (context or {}).get("task", {}) if isinstance(context, dict) else {}
+        if not getattr(plan, "original_objective", "") and isinstance(task_context, dict):
+            original = task_context.get("original_objective")
+            if isinstance(original, str) and original.strip():
+                plan.original_objective = original
+        contract = task_contract(plan)
+
         if getattr(
             plan,
             "reasoning_error",
@@ -776,7 +784,7 @@ class CentralMind:
                             f"{dependency}: {value}"
                         )
 
-            step_input = step.objective
+            step_input = "Original user objective: " + contract["original_objective"] + "\n\nStep objective: " + step.objective
 
             if evidence:
                 step_input += (
@@ -813,12 +821,11 @@ class CentralMind:
                 memory_ids=list(
                     plan.memory_ids
                 ),
-                requirements=list(
-                    step.requirements
-                ),
-                constraints=list(
-                    step.constraints
-                ),
+                requirements=list(dict.fromkeys([*plan.requirements, *step.requirements])),
+                constraints=list(dict.fromkeys([*plan.constraints, *step.constraints])),
+                task_id=plan.task_id,
+                original_objective=plan.original_objective,
+                acceptance_checks=[item for item in plan.acceptance_checks if item.get("step_id") in (None, step.step_id)],
                 steps=[step],
                 strategy=(
                     "execute_verified_step"
@@ -888,7 +895,8 @@ class CentralMind:
                     },
                     "appraisals": all_appraisals,
                 }
-                return public
+                from ..task_contract import attach_outcome
+                return attach_outcome(public, plan, step_results, communication="not_attempted")
 
             if result.get("output") is not None:
                 verified_outputs.append(
@@ -926,6 +934,27 @@ class CentralMind:
         )
 
     def _communicate(self, plan, step, evidence, appraisals, step_results=None):
+        from ..task_contract import attach_outcome, task_contract
+        task_contract(plan)
+        result = self._render_and_review(plan, step, evidence, appraisals, step_results)
+        result = attach_outcome(result, plan, step_results,
+                                communication="completed" if result.get("status") == "ok" else "failed")
+        if result["artifacts"]:
+            pending = getattr(self, "_communication_retries", {})
+            while len(pending) >= 32 and plan.task_id not in pending:
+                pending.pop(next(iter(pending)))
+            pending[plan.task_id] = (plan, step, evidence, appraisals, step_results)
+            self._communication_retries = pending
+            result["outcome"]["communication"]["retry_available"] = result.get("status") != "ok"
+        return result
+
+    def retry_communication(self, task_id):
+        context = getattr(self, "_communication_retries", {}).get(task_id)
+        if context is None:
+            return {"status": "error", "error": "This explanation is no longer available in the current session. No file operations were repeated."}
+        return self._communicate(*context)
+
+    def _render_and_review(self, plan, step, evidence, appraisals, step_results=None):
         """Ask Chat to render, then approve its draft before delivery."""
         renderer = getattr(self.chatbox, "render_for_review", None)
         if not callable(renderer):
@@ -935,9 +964,11 @@ class CentralMind:
                 "cognition": {"plan": plan.as_dict(), "appraisals": appraisals},
             }
 
+        receipts = [receipt for item in (step_results or {}).values() for receipt in item.get("execution_receipts", [])]
+        intent = {**step.as_dict(), "execution_receipts": receipts}
         draft = renderer(
             objective=plan.objective,
-            communication_intent=step.as_dict(),
+            communication_intent=intent,
             verified_evidence=evidence,
             request_model=self._request_chat_render_model,
         )
@@ -967,7 +998,7 @@ class CentralMind:
             first_issues = list(review.get("issues") or [])
             retry = renderer(
                 objective=plan.objective,
-                communication_intent={**step.as_dict(), "reviewer_feedback": first_issues},
+                communication_intent={**intent, "reviewer_feedback": first_issues},
                 verified_evidence=evidence,
                 request_model=self._request_chat_render_model,
             )
@@ -1161,6 +1192,7 @@ class CentralMind:
         Guard remains inside Broker before tool execution.
         Verifier remains post-action correctness checking.
         """
+        from ..task_contract import task_contract
         self.turn_count += 1
         self.broker.reset_budget()
 
@@ -1170,6 +1202,7 @@ class CentralMind:
             "turn": self.turn_count,
             "caller": self.caller,
             "context": dict(context or {}),
+            "task_contract": task_contract(plan) if plan is not None else {},
             "memory": getattr(self, "memory", None),
         }
         self.chat_log.append({
@@ -1299,6 +1332,7 @@ class CentralMind:
         responses: List[Dict[str, Any]] = []
         appraisals: List[Dict[str, Any]] = []
         verification_failed = False
+        execution_receipts = []
 
         for organ in organs:
             manifest = getattr(organ, "manifest", {}) or {}
@@ -1345,6 +1379,10 @@ class CentralMind:
                 }
             else:
                 verified = self.verifier.verify(response, real_organ)
+
+            from ..task_contract import execution_receipt
+            execution_receipts.append(execution_receipt(response, verified,
+                component=organ.name, capability=selected_step.capability))
 
             appraisal = self.appraiser.appraise(
                 objective=plan.objective,
@@ -1489,6 +1527,7 @@ class CentralMind:
                 "artifacts": combined.get("artifacts", []),
                 "domain": organ.name,
                 "capability": selected_step.capability,
+                "execution_receipts": execution_receipts,
                 "source_model": (getattr(self.caller, "last_source", None) or {}).get("name"),
                 **getattr(self.caller, "last_execution", {}),
                 "cognition": {
@@ -1497,6 +1536,8 @@ class CentralMind:
                 },
             }
 
+        combined["execution_receipts"] = execution_receipts
+        combined["artifacts"] = list(dict.fromkeys(path for receipt in execution_receipts for path in receipt["artifacts"]))
         out = self._format_combined(combined)
         self.chat_log.append({
             "role": "mind",

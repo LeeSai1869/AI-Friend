@@ -343,6 +343,12 @@ class CodingOrgan(Organ):
         domain = self._for_caller(request.get("caller"))
         if domain is not self:
             return domain.handle(request)
+        if request.get("task_contract") is not None:
+            from mind.task_contract import validate_task_contract
+            try:
+                validate_task_contract(request["task_contract"])
+            except ValueError as exc:
+                return {"status": "error", "error": str(exc), "artifacts": []}
         task = (request.get("text") or "").strip()
         task += plan_requirements_block(request.get("cognitive_plan"))
         answers = request.get("answers")
@@ -552,7 +558,7 @@ class CodingOrgan(Organ):
         tests = list(dict.fromkeys([*python_tests(inventory), *tests]))
         execution = self.execution.run(caller=caller, broker=broker, prompt=change_prompt,
             allowed_files=allowed_files, tests=tests,
-            sources=inventory)
+            sources=inventory, acceptance_checks=(request.get("cognitive_plan") or {}).get("acceptance_checks", []))
         if execution.get("status") != "executed":
             return execution
         writes, attempts = execution["writes"], execution["attempts"]
@@ -627,6 +633,9 @@ class CodingOrgan(Organ):
         result = {
             "status": "ok" if assessment["ok"] else "error",
             "operation": "code_change",
+            "applied": applied,
+            "functional_unavailable": execution.get("functional_unavailable"),
+            "acceptance": execution.get("acceptance"),
             "output": "\n".join(lines),
             "attempts": attempts,
             "functional_tests": functional_result,

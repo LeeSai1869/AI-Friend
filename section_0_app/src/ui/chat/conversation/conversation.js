@@ -73,6 +73,35 @@ export function createConversation() {
       artifacts.textContent = "Files: " + metadata.artifacts.join(", ");
       msg.appendChild(artifacts);
     }
+    if (role !== "user" && metadata?.outcome) {
+      const outcome = metadata.outcome;
+      const facts = document.createElement("div");
+      facts.className = "msg-outcome";
+      facts.textContent = `Execution: ${outcome.execution?.status || "unknown"} · Verification: ${outcome.verification?.status || "unknown"} · Reply: ${outcome.communication?.status || "unknown"}`;
+      msg.append(facts);
+      if (outcome.requirements?.length) {
+        const coverage = document.createElement("details");
+        const label = document.createElement("summary");
+        label.textContent = "Requirement checks";
+        coverage.append(label);
+        for (const requirement of outcome.requirements) {
+          const item = document.createElement("div");
+          item.textContent = `${requirement.id}: ${requirement.description} — ${requirement.status === "checks_passed" ? "Selected checks passed" : "Not verified"}`;
+          coverage.append(item);
+        }
+        msg.append(coverage);
+      }
+      if (outcome.communication?.retry_available) {
+        const retry = document.createElement("button");
+        retry.className = "retry-explanation";
+        retry.textContent = "Retry explanation only";
+        retry.onclick = () => {
+          retry.disabled = true;
+          window.dispatchEvent(new CustomEvent("retry-communication", { detail: { taskId: outcome.task_id, chatId: activeChatId } }));
+        };
+        msg.append(retry);
+      }
+    }
     if (role !== "user" && metadata) {
       const footer = resourceFooter(metadata);
 
@@ -169,7 +198,7 @@ export function createConversation() {
           ? "user"
           : "mind";
 
-      appendMessage(role, turn.text ?? "");
+      appendMessage(role, turn.text ?? "", { outcome: turn.outcome, artifacts: turn.outcome?.execution?.artifacts || [] });
     }
 
     if (!turns.length) {

@@ -433,3 +433,9 @@ onTransportMessage(async (msg) => {
 });
 
 connect();
+
+export function retryCommunication(taskId, chatId) {
+  const requestId = `reply-${Date.now()}-${++turnSequence}`;
+  sendRaw({ op: "retry_communication", request_id: requestId, task_id: taskId, chat_id: chatId });
+  return requestId;
+}

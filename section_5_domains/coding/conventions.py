@@ -39,7 +39,7 @@ def plan_requirements_block(plan: Any, limit: int = 12, width: int = 300) -> str
         raw = plan.get(key) or []
         if not isinstance(raw, (list, tuple)):
             continue
-        items = [str(item).strip()[:width] for item in raw if str(item).strip()][:limit]
+        items = [str(item).strip() for item in raw if str(item).strip()]
         if items:
             sections.append(title + ":\n" + "\n".join("- " + item for item in items))
     if not sections:

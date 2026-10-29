@@ -79,7 +79,12 @@ def browser_stack(tmp_path, monkeypatch):
                 if objective.strip() == '42':
                     assert pending and 'answer.py' in pending['objective']
                 output = json.dumps({
-                    'objective_summary': objective, 'requirements': [], 'constraints': [],
+                    'objective_summary': objective,
+                    'requirements': ['Return 42 from answer()'] if not needs_answer and not greeting and not reading else [],
+                    'acceptance_checks': [{'id':'requested-value','requirement_ids':['R1'],'kind':'python_call',
+                                          'payload':{'module':'answer','function':'answer','args':[],'expected':42}}]
+                                         if not needs_answer and not greeting and not reading else [],
+                    'constraints': [],
                     'ambiguities': ['required return value'] if needs_answer else [],
                     'information_needs': [{'subject': 'required return value', 'reason': 'not supplied', 'material': True}] if needs_answer else [],
                     'consultations': [], 'candidate_steps': steps,
@@ -95,16 +100,23 @@ def browser_stack(tmp_path, monkeypatch):
             elif 'Files actually inspected:' in text:
                 assert 'def answer()' in text
                 output = 'I read answer.py from the open project. It defines answer() and returns 42.'
-            elif 'Render a clear, concise response for the human' in text:
+            elif 'Write in the first person, speaking directly' in text:
                 payload = json.loads(request['messages'][-1]['content'])
                 events['communication_evidence'].append(payload['verified_evidence'])
-                output = ('I read answer.py from the open project.\n' if 'ptoject' in payload.get('objective', '') else 'Implemented answer.py and verified the selected behavior.\n') + '\n'.join(payload['verified_evidence']) if payload['verified_evidence'] else 'Hello. How can I help?'
+                if payload['objective'].lower().startswith('hello'):
+                    output = 'Hello. How can I help?'
+                else:
+                    prefix = 'I read answer.py from the open project.\n' if 'ptoject' in payload['objective'] else 'Implemented answer.py and verified the selected behavior.\n'
+                    output = prefix + '\n'.join(item if isinstance(item, str) else json.dumps(item) for item in payload['verified_evidence'])
             elif 'Audit the Chat draft against the objective' in text:
-                output = json.dumps({'approved': True, 'issues': []})
+                remaining = events.get('audit_failures_remaining', 0)
+                events['audit_failures_remaining'] = max(0, remaining - 1)
+                output = json.dumps({'approved': not remaining, 'issues': ['Injected communication failure'] if remaining else []})
             elif 'Answer strictly with JSON in one of these shapes' in text:
                 output = json.dumps({'kind': 'code_change', 'files': ['answer.py'], 'tests': ['test_answer.py'],
                                      'summary': 'Return the requested value'})
             else:
+                events['writer_calls'] = events.get('writer_calls', 0) + 1
                 repair = 'Functional test failure evidence' in text
                 if repair:
                     events['repair_saw_original'] = (project / 'answer.py').read_text().endswith('return 0\n')
@@ -261,16 +273,25 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         expect(chat.locator('#chat-thread')).to_contain_text('What value should answer() return?', timeout=15000)
         expect(chat.locator('#send')).to_be_enabled()
         assert (stack['project'] / 'answer.py').read_text().endswith('return 0\n')
+        stack['events']['audit_failures_remaining'] = 2
         chat.locator('#input').fill('42')
         chat.locator('#send').click()
         expect(chat.locator('#send')).to_be_disabled()
-        expect(chat.locator('#chat-thread')).to_contain_text('Functional tests: 1 run, 1 passed', timeout=60000)
+        expect(chat.locator('#chat-thread')).to_contain_text('Functional tests: 2 run, 2 passed', timeout=60000)
         expect(chat.locator('#send')).to_be_enabled()
         expect(chat.locator('.msg-artifacts').last).to_contain_text('answer.py')
         expect(coding.locator('#editor')).to_contain_text('return 42', timeout=15000)
         assert stack['events']['repair_saw_original'], 'failed candidate must not be written to the project'
         assert stack['events']['communication_evidence'][-1]
         assert (stack['project'] / 'answer.py').read_text().endswith('return 42\n')
+        expect(chat.locator('#chat-thread')).to_contain_text('File operations completed, but the explanation could not be approved.')
+        expect(chat.locator('.retry-explanation')).to_be_visible()
+        writes_before = stack['events']['writer_calls']
+        modified_before = (stack['project'] / 'answer.py').stat().st_mtime_ns
+        chat.get_by_role('button', name='Retry explanation only').click()
+        expect(chat.locator('.msg-outcome').last).to_contain_text('Reply: completed', timeout=15000)
+        assert stack['events']['writer_calls'] == writes_before
+        assert (stack['project'] / 'answer.py').stat().st_mtime_ns == modified_before
         entries = list(stack['memory'].store.iter_entries())
         assert entries and all(entry.memory_class != 'raw' for entry in entries)
         coding.get_by_role('button', name='Run Python tests', exact=True).click()

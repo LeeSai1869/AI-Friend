@@ -10,5 +10,8 @@ def test_importable():
     from mind.router import Router  # noqa
 
 def test_loop_instantiates():
-    t = (ROOT / "mind" / "loop.py").read_text(encoding="utf-8")
+    from section_1_central_mind.mind.loop import CentralMind
+    from section_1_central_mind.mind.regular_operation.loop import CentralMind as RegularMind
+    assert CentralMind is RegularMind
+    t = (ROOT / "mind" / "regular_operation" / "loop.py").read_text(encoding="utf-8")
     assert "Caller(" in t
