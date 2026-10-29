@@ -73,3 +73,8 @@ secrets.json
 section_0_app/src-tauri/gen/
 whisperkit/
 .central_mind/chats/
+
+# Memory-service operational journals and writer locks
+**/intake_processing.sqlite3*
+**/.entry-write.lock
+**/.knowledge-write.lock

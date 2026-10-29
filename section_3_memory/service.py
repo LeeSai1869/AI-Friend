@@ -21,6 +21,17 @@ from .api import Memory
 from .bridge import MemoryBridge
 
 
+def serialized_knowledge(method):
+    from functools import wraps
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        from .locking import memory_lock
+        with memory_lock(self._bridge.memory.store.memory_root, '.knowledge-write.lock'):
+            self._load_knowledge_journal()
+            return method(self, *args, **kwargs)
+    return call
+
+
 class MemoryService:
     """Central entry point for memory operations."""
 
@@ -37,6 +48,9 @@ class MemoryService:
         self._deletion_journal = entries_dir.parent / "deletion_proposals.json"
         self._load_knowledge_journal()
         self._load_deletion_journal()
+        from .processing import ProcessingJournal
+        self.processing = ProcessingJournal(self._bridge.memory.store.memory_root)
+        self.recover_raw_intakes()
 
     def _load_deletion_journal(self) -> None:
         """Load deletion requests; never silently discard a corrupt journal."""
@@ -242,7 +256,57 @@ class MemoryService:
                 "Central Mind may recall it for analysis and testing."
             ),
         )
+        try:
+            self.enqueue_raw(entry.id)
+        except Exception as exc:
+            # Storage succeeded. Queue recovery can discover this source later.
+            self._processing_queue_error = str(exc)
         return entry.id
+
+    def enqueue_raw(self, raw_id):
+        import hashlib
+        entry = self._bridge.memory.get(raw_id)
+        if entry is None or entry.memory_class != 'raw':
+            raise ValueError('Only an existing Raw entry can be examined')
+        return self.processing.enqueue(entry.id, entry.domain_created, hashlib.sha256(entry.content.encode()).hexdigest())
+
+    def recover_raw_intakes(self):
+        for entry in self._bridge.memory.store.iter_entries():
+            if entry.memory_class == 'raw':
+                self.enqueue_raw(entry.id)
+
+    def compare_raw_source(self, source):
+        matches=[]
+        for entry in self._bridge.memory.store.iter_entries():
+            if entry.id != source['id'] and entry.memory_class == 'raw' and entry.domain_created == source['domain_created'] and entry.content == source['content']:
+                matches.append(entry.id)
+        return {'status':'duplicate' if matches else 'new','raw_ids':matches}
+
+    def examination_context(self, domain, limit=16):
+        rows=[]
+        for entry in self._bridge.memory.store.iter_entries():
+            if entry.domain_created == domain and entry.memory_class != 'raw' and entry.status == 'active':
+                rows.append({'id':entry.id, 'kind':entry.kind, 'title':entry.title,
+                             'content':entry.content[:16000], 'source':dict(entry.source),
+                             'truncated':len(entry.content)>16000})
+                if len(rows)>=limit:
+                    break
+        return rows
+
+    def reconcile_candidate(self, candidate):
+        # Called by Mind; domains receive only the resulting comparison facts.
+        content = candidate.get('content', '').strip()
+        domain = candidate.get('domain')
+        key = (candidate.get('source') or {}).get('semantic_key')
+        conflicts = []
+        for entry in self._bridge.memory.store.iter_entries():
+            if entry.status != 'active' or entry.domain_created != domain or entry.memory_class == 'raw':
+                continue
+            if entry.kind == candidate.get('kind') and entry.content.strip() == content:
+                return {'status':'duplicate','memory_ids':[entry.id]}
+            if key and entry.source.get('semantic_key') == key:
+                conflicts.append(entry.id)
+        return {'status':'conflicting' if conflicts else 'new','memory_ids':conflicts}
 
     def _propose_delete(
         self, actor: str, mem_id: str, reason: str
@@ -278,6 +342,7 @@ class MemoryService:
             if item["status"] == "pending"
         ]
 
+    @serialized_knowledge
     def _propose_knowledge(
         self,
         actor: str,
@@ -360,6 +425,7 @@ class MemoryService:
         """Return a copy of one proposal without exposing mutable service state."""
         return copy.deepcopy(self._find_knowledge_proposal(proposal_id))
 
+    @serialized_knowledge
     def commit_approved_proposal(
         self,
         proposal_id: int,
@@ -397,6 +463,17 @@ class MemoryService:
             "decision_reason": decision_reason.strip(),
             "approved_by": approved_by,
         }
+
+        if source_payload.get("intake_examiner_version"):
+            comparison = self.reconcile_candidate(proposal)
+            if comparison["status"] == "conflicting":
+                raise ValueError("Candidate conflicts with existing knowledge; review is required")
+            if comparison["status"] == "duplicate":
+                proposal.update({"status": "approved", "decision": "approved", "decided_by": approved_by,
+                    "decided_at": time.time(), "decision_reason": "Reused an identical existing knowledge entry",
+                    "approved_class": approved_class, "memory_id": comparison["memory_ids"][0], "reused_existing": True})
+                self._save_knowledge_journal()
+                return copy.deepcopy(proposal)
 
         # Recover a prior commit if the process stopped after writing the
         # entry but before persisting the proposal's approved status.
@@ -454,6 +531,7 @@ class MemoryService:
             raise
         return copy.deepcopy(proposal)
 
+    @serialized_knowledge
     def reject_knowledge_proposal(
         self,
         proposal_id: int,

@@ -98,6 +98,8 @@ class CodingOrgan(Organ):
         self.execution = CodingExecution()
         self.operations = CodingOperations()
         self.experience = CodingExperience()
+        from .intake_examiner import CodingIntakeExaminer
+        self.intake_examiner = CodingIntakeExaminer()
 
     def _for_caller(self, caller):
         if self._session_scoped or caller is None:
@@ -110,7 +112,12 @@ class CodingOrgan(Organ):
             self._sessions[caller] = domain
         return self._sessions[caller]
 
+    def handle_intake_processing(self, request):
+        return self.intake_examiner.examine(request["raw_source"], request.get("existing_knowledge", []))
+
     def evaluate_knowledge(self, proposal):
+        if (proposal.get("source") or {}).get("intake_examiner_version"):
+            return self.intake_examiner.evaluate(proposal)
         return self.experience.evaluate(proposal)
 
     def verify(self, response: Dict[str, Any]) -> Dict[str, Any]:

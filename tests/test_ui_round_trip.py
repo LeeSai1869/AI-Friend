@@ -339,7 +339,25 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         assert imported.memory_class == 'raw'
         assert lesson in imported.content, 'must ingest full content, not its 500-character preview'
         assert 'A general training lesson for future analysis.' in imported.content
+        expect(chat.locator('#intake-processing-summary')).to_contain_text('deferred')
         chat.locator('#intake-another').click()
+        chat.locator('[data-action="text"]').click()
+        chat.locator('#intake-source').fill('```python\ndef count_entries(items):\n    return len(items)\n```')
+        chat.locator('#intake-source-name').fill('Counter source')
+        chat.locator('#intake-source-submit').click()
+        expect(chat.locator('#intake-store')).to_be_visible(timeout=15000)
+        chat.locator('#intake-domain').select_option('Cod')
+        chat.locator('#intake-context-0').fill('Inspect Python structure; behavior is not yet verified.')
+        chat.locator('#intake-store').click()
+        expect(chat.locator('#intake-processing-summary')).to_contain_text('accepted', timeout=15000)
+        raw_code_id = chat.locator('.intake-value').first.inner_text()
+        assert stack['memory'].get(raw_code_id).memory_class == 'raw'
+        chat.locator('#intake-processing-retry').click()
+        expect(chat.locator('#intake-processing-summary')).to_contain_text('duplicate', timeout=15000)
+        chat.locator('#intake-another').click()
+        chat.locator('#intake-queue').click()
+        expect(chat.locator('#processing-rows')).to_contain_text(raw_code_id, timeout=15000)
+        chat.locator('#queue-back').click()
         chat.locator('[data-action="file"]').click()
         chat.locator('#intake-upload').set_input_files({'name': 'outside-project.txt', 'mimeType': 'text/plain', 'buffer': b'External disk lesson'})
         chat.locator('#intake-upload-submit').click()

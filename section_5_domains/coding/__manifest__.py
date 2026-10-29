@@ -13,6 +13,7 @@ ORGAN = {
     "kind": "domain",
     "scope": "outside_guards",
     "memory_domain": "Cod",
+    "intake_processing": {"mode": "automatic", "capability": "examine_intake"},
     "display_name": "Coder",
     "icon": "💻",
     "window": "code",

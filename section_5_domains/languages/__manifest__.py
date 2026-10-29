@@ -12,6 +12,7 @@ ORGAN = {
     "domain_key": "languages",
     "scope": "outside_guards",
     "memory_domain": "Lng",
+    "intake_processing": {"mode": "deferred", "reason": "Languages learns gradually through communication and Trainer feedback; automatic batch learning is deferred."},
     "display_name": "Languages",
     "icon": "🌐",
     "window": "chat",

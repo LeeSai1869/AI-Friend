@@ -1,9 +1,10 @@
 // Memory Intake panel — a separate operation from chat.
 // Three screens: source picker, proposal review, confirmation.
 
-import { sendRaw, onMessage } from "../../shared/auth_session/session.js";
+import { sendRaw, onMessage, onAuthenticated } from "../../shared/auth_session/session.js";
 
 let currentProposal = null;
+let queueView = false;
 
 // ---- panel open / close ----------------------------------------
 
@@ -19,6 +20,7 @@ export function closeIntake() {
   if (!overlay) return;
   overlay.style.display = "none";
   currentProposal = null;
+  queueView = false;
 }
 
 // The header close button is permanent HTML shared by Chat and Coding.
@@ -31,6 +33,7 @@ if (headerCloseButton) {
 // ---- screen 1: pick a source ----------------------------------
 
 function showSourceScreen() {
+  queueView = false;
   const body = document.getElementById("intake-body");
   body.innerHTML = `
     <div class="intake-section">
@@ -55,11 +58,16 @@ function showSourceScreen() {
       </div>
     </div>
     <div class="intake-footer">
+      <button id="intake-queue" class="intake-btn">Review processing queue</button>
       <button id="intake-cancel-1" class="intake-btn">Cancel</button>
     </div>
   `;
 
   document.getElementById("intake-cancel-1").onclick = closeIntake;
+  document.getElementById("intake-queue").onclick = () => {
+    queueView = true;
+    sendRaw({ op: "intake_processing_list" });
+  };
 
   body.querySelectorAll(".intake-btn[data-action]").forEach((b) => {
     b.onclick = () => {
@@ -322,6 +330,7 @@ function showSubmittedScreen(s) {
   body.innerHTML = `
     <div class="intake-section">
       <div class="intake-label">Intake stored</div>
+      <div id="intake-processing-summary" class="intake-hint">${escapeHtml(s.processing ? `Processing: ${s.processing.processing} · Verification: ${s.processing.verification} · Mind decision: ${s.processing.decision}. ${s.processing.reason || ""}` : "Source is stored; processing status is unavailable.")}</div>
       <div class="intake-hint">${escapeHtml(s.memory_id ? "Stored as Raw Memory. Central Mind can recall it for analysis and testing; it remains unverified until evaluated." : "No memory entry was created.")}</div>
       <div class="intake-field">
         <span class="intake-key">Memory ID</span>
@@ -345,18 +354,63 @@ function showSubmittedScreen(s) {
       </div>
     </div>
     <div class="intake-footer">
+      <button id="intake-processing-retry" class="intake-btn">Re-examine source</button>
+      <button id="intake-processing-resume" class="intake-btn">Process queued sources</button>
       <button id="intake-another" class="intake-btn">Intake another</button>
       <button id="intake-close-3" class="intake-btn primary">Close</button>
     </div>
   `;
 
+  document.getElementById("intake-processing-retry").onclick = () => {
+    sendRaw({ op: "intake_processing_retry", memory_id: s.memory_id });
+  };
+  document.getElementById("intake-processing-resume").onclick = () => sendRaw({ op: "intake_processing_resume" });
   document.getElementById("intake-another").onclick = showSourceScreen;
   document.getElementById("intake-close-3").onclick = closeIntake;
 }
 
+function showProcessingQueue(rows) {
+  const body = document.getElementById("intake-body");
+  body.innerHTML = '<div class="intake-section"><div class="intake-label">Raw Memory processing</div><div id="processing-rows"></div></div><div class="intake-footer"><button id="queue-back" class="intake-btn">Back</button><button id="queue-resume" class="intake-btn primary">Process next queued sources</button></div>';
+  const list = document.getElementById("processing-rows");
+  if (!rows.length) list.textContent = "No Raw sources are queued.";
+  for (const row of rows) {
+    const record = document.createElement("div");
+    record.style.cssText = "padding:10px 0;border-bottom:1px solid var(--border)";
+    const text = document.createElement("div");
+    text.textContent = `${row.raw_id} · ${row.domain} — Storage: ${row.storage}; Processing: ${row.processing}; Verification: ${row.verification}; Decision: ${row.decision}. ${row.reason || ""}`;
+    record.append(text);
+    const retry = document.createElement("button");
+    retry.className = "intake-btn";
+    retry.textContent = "Re-examine";
+    retry.onclick = () => { retry.disabled = true; sendRaw({ op: "intake_processing_retry", memory_id: row.raw_id }); };
+    record.append(retry);
+    list.append(record);
+  }
+  document.getElementById("queue-back").onclick = showSourceScreen;
+  document.getElementById("queue-resume").onclick = () => sendRaw({ op: "intake_processing_resume" });
+}
+
 // ---- WebSocket message handling -------------------------------
 
+onAuthenticated(account => {
+  if (["trainer", "administrator"].includes(account?.role)) sendRaw({ op: "intake_processing_resume" });
+});
+
 onMessage((msg) => {
+  if (msg.op === "intake_processing_result") {
+    if (queueView) {
+      if (!msg.ok) { showError(msg.error || "Could not read processing status."); queueView = false; }
+      else if (msg.operation !== "intake_processing_list") sendRaw({ op: "intake_processing_list" });
+      else showProcessingQueue(msg.sources || []);
+      return;
+    }
+    const summary = document.getElementById("intake-processing-summary");
+    if (summary) {
+      summary.textContent = msg.ok ? (msg.sources.length ? msg.sources.map(row => `${row.raw_id}: ${row.processing} · ${row.verification} · ${row.decision}. ${row.reason || ""}`).join("\n") : "No queued sources need processing.") : msg.error;
+    }
+    return;
+  }
   if (msg.op === "intake_proposal") {
     if (msg.error) {
       const body = document.getElementById("intake-body");

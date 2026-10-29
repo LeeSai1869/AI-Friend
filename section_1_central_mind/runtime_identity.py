@@ -1,2 +1,2 @@
 """Release identity shared by the desktop handshake and diagnostics."""
-BUILD_ID = "2026.10.29.1"
+BUILD_ID = "2026.10.29.2"

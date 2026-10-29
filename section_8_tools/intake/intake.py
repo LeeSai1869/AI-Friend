@@ -211,7 +211,7 @@ class IntakeCommit(Tool):
                     "answer at least the question about the nature of the material"
                 )
             content = (
-                str(proposal.get("content", "")).rstrip()
+                str(proposal.get("content", ""))
                 + "\n\nTrainer-provided intake context (not independently verified):\n"
                 + "\n\n".join(context_lines)
             )

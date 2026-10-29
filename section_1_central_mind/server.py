@@ -990,8 +990,14 @@ async def handle_client(
                         }))
                         continue
 
+                    try:
+                        processing = await asyncio.to_thread(mind.process_raw_intake, memory_id)
+                    except Exception as exc:
+                        processing = {"storage": "stored", "processing": "failed", "verification": "not_attempted",
+                                      "decision": "pending", "reason": str(exc)}
                     await websocket.send(json.dumps({
                         "op": "intake_proposal_submitted",
+                        "processing": processing,
                         "memory_id": memory_id,
                         "status": data_out.get("status"),
                         "memory_class": data_out.get("memory_class"),
@@ -999,6 +1005,22 @@ async def handle_client(
                         "title": data_out.get("title", ""),
                         "tags": data_out.get("tags", []),
                     }))
+                    continue
+
+                if op in {"intake_processing_list", "intake_processing_retry", "intake_processing_resume"}:
+                    if account["role"] not in {"trainer", "administrator"}:
+                        await websocket.send(json.dumps({"op":"intake_processing_result","operation":op,"ok":False,"error":"Trainer or Administrator role required"}))
+                        continue
+                    try:
+                        if op == "intake_processing_retry":
+                            rows=[await asyncio.to_thread(mind.process_raw_intake, str(data.get("memory_id") or ""), retry=True)]
+                        elif op == "intake_processing_resume":
+                            rows=await asyncio.to_thread(mind.process_pending_raw_intakes, 4)
+                        else:
+                            rows=mind.memory_service.processing.list()
+                        await websocket.send(json.dumps({"op":"intake_processing_result","operation":op,"ok":True,"sources":rows}))
+                    except Exception as exc:
+                        await websocket.send(json.dumps({"op":"intake_processing_result","operation":op,"ok":False,"error":str(exc)}))
                     continue
 
                 # ---- memory review: fail closed pending trusted workflow -------

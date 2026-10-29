@@ -171,6 +171,15 @@ class CentralMind:
         """Run the independent self-assessment loop on demand."""
         return self.self_assessment.run()
 
+    def process_pending_raw_intakes(self, limit=4):
+        if self.memory_service is None:
+            raise RuntimeError("Memory Service is unavailable")
+        return [self.process_raw_intake(raw_id) for raw_id in self.memory_service.processing.pending(limit)]
+
+    def process_raw_intake(self, raw_id, *, retry=False):
+        from ..intake_processing import RawIntakeProcessor
+        return RawIntakeProcessor(self).run(raw_id, retry=retry)
+
     def _fulfill_domain_requirement(
         self,
         requirement,
@@ -202,7 +211,11 @@ class CentralMind:
             (request or {}).get("mode") or "cognitive"
         ).strip().lower()
 
-        if request_mode == "consultation":
+        if request_mode == "intake_processing":
+            declaration = (info.manifest or {}).get("intake_processing") or {}
+            if declaration.get("mode") != "automatic" or capability != declaration.get("capability"):
+                return {"status": "error", "error": "Domain has no matching intake examination contract"}
+        elif request_mode == "consultation":
             manifest = getattr(info, "manifest", {}) or {}
             evidence_capabilities = (
                 manifest.get("evidence_capabilities", {})
@@ -288,6 +301,11 @@ class CentralMind:
                         ),
                     }
                 response = application_handler(domain_request)
+            elif mode == "intake_processing":
+                handler = getattr(organ, "handle_intake_processing", None)
+                if not callable(handler):
+                    return {"status": "error", "error": "Domain intake examiner is unavailable"}
+                response = handler(domain_request)
             elif mode == "consultation":
                 consultation_handler = getattr(
                     organ,

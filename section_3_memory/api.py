@@ -64,7 +64,13 @@ class Memory:
             if not self.store.exists(mem_id):
                 return mem_id
 
-    def record(
+    def record(self, *args, **kwargs) -> Entry:
+        from .locking import memory_lock
+        with memory_lock(self.store.memory_root, '.entry-write.lock'):
+            self._sequences = self._load_sequences()
+            return self._record(*args, **kwargs)
+
+    def _record(
         self,
         domain: str,
         kind: str,
