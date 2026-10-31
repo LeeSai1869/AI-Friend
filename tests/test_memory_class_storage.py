@@ -137,3 +137,41 @@ def test_raw_intake_adds_new_entries_without_overwriting_existing_raw(tmp_path):
     assert memory.get(first.id).content == "First version."
     assert memory.get(second.id).content == "Updated source from a new intake."
     assert memory.count() == 2
+
+
+def test_reused_raw_alias_cannot_hide_canonical_tested_record(tmp_path):
+    raw=tmp_path/'Raw Memory';raw.mkdir()
+    tested=tmp_path/'Tested Memory';tested.mkdir()
+    old='mem_Cod_0000000000010'
+    (raw/'raw_original_abcdefgh.json').write_text(json.dumps({'id':'raw_original_abcdefgh','ts':1,
+        'domain_created':'Cod','memory_class':'raw','kind':'fact','title':'Original','content':'Raw source',
+        'source':{'legacy_id':old}}))
+    (tested/f'{old}.json').write_text(json.dumps({'id':old,'ts':2,'domain_created':'Cod',
+        'memory_class':'tested','kind':'fact','title':'Checked','content':'Checked observation'}))
+    memory=Memory(root=tmp_path)
+    assert memory.get(old).memory_class=='tested'
+    assert memory.get('raw_original_abcdefgh').memory_class=='raw'
+    assert len(list(memory.store.iter_entries()))==2
+
+
+def test_raw_alias_does_not_advance_mainstream_sequence(tmp_path):
+    raw=tmp_path/'Raw Memory';raw.mkdir()
+    (raw/'raw_original_abcdefgh.json').write_text(json.dumps({'id':'raw_original_abcdefgh','ts':1,
+        'domain_created':'Cod','memory_class':'raw','kind':'fact','title':'Original','content':'Raw source',
+        'source':{'legacy_id':'mem_Cod_0000000000099'}}))
+    memory=Memory(root=tmp_path)
+    entry=memory.record(domain='Cod',kind='fact',title='New',content='New fact',memory_class='tested')
+    assert entry.id=='mem_Cod_0000000000001'
+    assert memory.get('mem_Cod_0000000000099').memory_class=='raw'
+
+
+def test_mainstream_sequence_skips_only_an_actual_historical_collision(tmp_path):
+    raw=tmp_path/'Raw Memory';raw.mkdir()
+    (raw/'raw_original_abcdefgh.json').write_text(json.dumps({'id':'raw_original_abcdefgh','ts':1,
+        'domain_created':'Cod','memory_class':'raw','kind':'fact','title':'Original','content':'Raw source',
+        'source':{'legacy_id':'mem_Cod_0000000000001'}}))
+    memory=Memory(root=tmp_path)
+    entry=memory.record(domain='Cod',kind='fact',title='Checked',content='Checked fact',memory_class='tested')
+    assert entry.id=='mem_Cod_0000000000002'
+    assert memory.get('mem_Cod_0000000000001').memory_class=='raw'
+    assert memory.get(entry.id).memory_class=='tested'

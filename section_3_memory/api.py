@@ -54,6 +54,11 @@ class Memory:
     def _next_seq(self, domain_prefix: str) -> int:
         current = self._sequences.get(domain_prefix, 0)
         nxt = current + 1
+        # Historical numbered Raw IDs are compatibility references, not the
+        # mainstream sequence's high-water mark. Skip individual collisions
+        # without importing their numbers into Tested/Derived numbering.
+        while make_id(domain_prefix, nxt) in self.store._legacy_aliases:
+            nxt += 1
         self._sequences[domain_prefix] = nxt
         self._save_sequences()
         return nxt

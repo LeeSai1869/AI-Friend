@@ -169,6 +169,11 @@ class Store:
         return new_id
 
     def _rewrite_raw_references(self, aliases: dict[str, str]) -> None:
+        # An old Raw number may already have been reused by a canonical
+        # Tested/Derived record. Never guess which record a reference meant.
+        aliases = {old:new for old,new in aliases.items() if not any(
+            (self._class_directory(cls) / f"{old}.json").is_file()
+            for cls in ("tested", "derived"))}
         if not aliases:
             return
         for directory in self._class_directories.values():
@@ -202,6 +207,12 @@ class Store:
 
     def _find_path(self, mem_id: str) -> Optional[Path]:
         self._validate_id(mem_id)
+        # Canonical IDs take precedence over historical aliases. Raw remains
+        # directly accessible through its migrated raw_* ID.
+        for directory in self._class_directories.values():
+            canonical = directory / f"{mem_id}.json"
+            if canonical.is_file():
+                return canonical
         mem_id = self._legacy_aliases.get(mem_id, mem_id)
         for directory in self._class_directories.values():
             candidate = directory / f"{mem_id}.json"
@@ -218,7 +229,7 @@ class Store:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             entry = Entry.from_dict(data)
-            expected_id = self._legacy_aliases.get(requested_id, requested_id)
+            expected_id = requested_id if path.stem == requested_id else self._legacy_aliases.get(requested_id, requested_id)
             if entry.id != expected_id:
                 return None
             return entry
