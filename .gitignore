@@ -78,3 +78,5 @@ whisperkit/
 **/intake_processing.sqlite3*
 **/.entry-write.lock
 **/.knowledge-write.lock
+
+**/.intake-write.lock

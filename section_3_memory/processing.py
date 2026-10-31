@@ -26,6 +26,10 @@ class ProcessingJournal:
                     created_at REAL NOT NULL, state TEXT NOT NULL, payload TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS source_events ON events(raw_id, id);
+                CREATE TABLE IF NOT EXISTS intake_receipts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, raw_id TEXT NOT NULL,
+                    created_at REAL NOT NULL, duplicate INTEGER NOT NULL, payload TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS worker_lease (
                     singleton INTEGER PRIMARY KEY CHECK(singleton=1), token TEXT, expires REAL
                 );
@@ -111,3 +115,13 @@ class ProcessingJournal:
             self._event(db, raw_id, state, {'storage':'stored', **payload})
             db.execute('UPDATE worker_lease SET token=NULL,expires=0 WHERE singleton=1')
         return self.status(raw_id)
+
+    def record_intake(self, raw_id, *, duplicate, actor, source, source_refs, title, tags=None):
+        with self.connect() as db:
+            db.execute('INSERT INTO intake_receipts(raw_id,created_at,duplicate,payload) VALUES(?,?,?,?)',
+                       (raw_id,time.time(),int(duplicate),json.dumps({'actor':actor,'source':source,
+                        'source_refs':source_refs,'title':title,'tags':tags or []},ensure_ascii=False)))
+
+    def intake_receipts(self, raw_id):
+        with self.connect() as db:
+            return [dict(row) for row in db.execute('SELECT * FROM intake_receipts WHERE raw_id=? ORDER BY id',(raw_id,))]

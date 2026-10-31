@@ -143,15 +143,11 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 # Learning stays proposal-based, and system activity creates no Raw entry.
                 assert all(entry.memory_class != 'raw' for entry in isolated_memory.store.iter_entries())
                 mind = mind_instances[-1]
-                journal = json.loads((tmp_path / 'memory/knowledge_proposals.json').read_text())
-                proposal = journal['proposals'][-1]
-                assert proposal['status'] == 'approved'
-                assert proposal['requested_class'] == 'derived'
-                evaluated = mind._receive_memory_proposal(proposal)
-                assert evaluated['learning_evaluation']['ok'], evaluated
-                assert evaluated['learning_evaluation']['evidence']['functional_correctness_established'] is False
-                recalled = mind.memory.recall_tested(query='answer', domain='Cod', limit=5)
-                assert recalled and 'functional correctness is unverified' in recalled[0]['content']
+                # This fixture performs syntax checks only. That is a useful
+                # operational receipt, not a behaviorally verified example.
+                assert not (tmp_path / 'memory/knowledge_proposals.json').exists()
+                assert mind.memory.recall_tested(query='answer', domain='Cod', limit=5) == []
+
     try:
         asyncio.run(exercise())
     finally:

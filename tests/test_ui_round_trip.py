@@ -295,6 +295,21 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         assert stack['events']['repair_saw_original'], 'failed candidate must not be written to the project'
         assert stack['events']['communication_evidence'][-1]
         assert (stack['project'] / 'answer.py').read_text().endswith('return 42\n')
+        examples = []
+        for entry in stack['memory'].store.iter_entries():
+            if entry.memory_class != 'tested':
+                continue
+            try:
+                payload = json.loads(entry.content)
+            except ValueError:
+                continue
+            if payload.get('kind') == 'verified_coding_example':
+                examples.append(payload)
+        assert examples, 'behaviorally verified Coding result must reach permanent memory'
+        assert any('return 42' in file['content'] for file in examples[0]['files'])
+        assert examples[0]['verification']['functional_tests']['passed'] > 0
+        assert examples[0]['applicability']['automatic_reuse_approved'] is False
+
         expect(chat.locator('#chat-thread')).to_contain_text('File operations completed, but the explanation could not be approved.')
         expect(chat.locator('.retry-explanation')).to_be_visible()
         writes_before = stack['events']['writer_calls']

@@ -687,7 +687,27 @@ class CodingOrgan(Organ):
             },
             **({} if assessment["ok"] else {"error": assessment["reason"]}),
         }
-        self.experience.remember(result["learning_candidate"], assessment, functional_result)
+        from .learning import verified_example
+        candidate = result.pop("learning_candidate")
+        learned_content = verified_example(task=task, task_contract=request.get("task_contract"),
+            writes=writes, assessment=assessment, functional_result=functional_result)
+        if learned_content is not None:
+            candidate["content"] = learned_content
+            candidate["source"].setdefault("type", "mind")
+            import hashlib, json
+            example = json.loads(learned_content)
+            identity = {"objective":(request.get("task_contract") or {}).get("original_objective") or task,
+                        "files":[{"path":item["path"],"sha256":item["sha256"]} for item in example["files"]],
+                        "requirements":(request.get("task_contract") or {}).get("requirements",[]),
+                        "constraints":(request.get("task_contract") or {}).get("constraints",[])}
+            candidate["source"]["verified_example_fingerprint"] = hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
+            candidate["tags"] = ["coding", "verified_example", "selected_behavioral_tests"]
+            candidate["derivation_note"] = "Behaviorally checked example with source snapshot and verification scope; applicability must be reassessed."
+            result["learning_candidate"] = candidate
+            self.experience.remember(candidate, assessment, functional_result)
+        else:
+            result["learning_disposition"] = {"status":"not_proposed",
+                "reason":"No compact behaviorally verified example: syntax-only runs, failed checks and oversized examples remain operational evidence."}
         return result
 
 

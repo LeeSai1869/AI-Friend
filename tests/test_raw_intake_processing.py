@@ -76,11 +76,12 @@ def test_repeat_processing_and_duplicate_sources_do_not_duplicate_knowledge(tmp_
     again=mind.process_raw_intake(one,retry=True)
     assert again['decision']=='duplicate' and again['knowledge_ids']==first['knowledge_ids']
     two=intake(trainer)
-    result=mind.process_raw_intake(two)
+    assert two==one  # repeated intake reuses the immutable Raw source
+    result=mind.process_raw_intake(two,retry=True)
     assert result['decision']=='duplicate'
-    assert result['analysis']['raw_comparison']['raw_ids']==[one]
+    assert len(mind.memory_service.processing.intake_receipts(one))==2
     assert len([entry for entry in memory.store.iter_entries() if entry.memory_class=='tested'])==1
-    assert [row['state'] for row in mind.memory_service.processing.history(one)]==['queued','examining','completed','examining','completed']
+    assert [row['state'] for row in mind.memory_service.processing.history(one)]==['queued','examining','completed','examining','completed','examining','completed']
 
 
 def test_conflicting_observations_are_deferred_without_overwriting_prior_knowledge(tmp_path):
@@ -171,3 +172,36 @@ def test_concurrent_writers_never_reuse_entry_ids(tmp_path):
         ids = list(workers.map(write, enumerate(memories)))
     assert len(set(ids)) == 8
     assert len(list(memories[0].store.iter_entries())) == 8
+
+
+def test_concurrent_duplicate_intake_keeps_one_raw_and_both_receipts(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    one,trainer,memory,_=stack(tmp_path)
+    two,other,_,_=stack(tmp_path)
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        ids=list(workers.map(intake,[trainer,other]))
+    assert ids[0]==ids[1]
+    assert len([entry for entry in memory.store.iter_entries() if entry.memory_class=='raw'])==1
+    receipts=one.memory_service.processing.intake_receipts(ids[0])
+    assert len(receipts)==2 and sum(row['duplicate'] for row in receipts)==1
+
+
+def test_same_text_in_different_domains_is_not_conflated(tmp_path):
+    mind,trainer,memory,_=stack(tmp_path)
+    one=intake(trainer,'hello',domain='Cod')
+    two=intake(trainer,'hello',domain='Lng')
+    assert one!=two
+
+
+def test_same_source_with_new_trainer_notes_reuses_raw_but_preserves_receipts(tmp_path):
+    mind,trainer,memory,_=stack(tmp_path)
+    def submit(note):
+        context=[f'Q: Purpose?\nA: {note}']
+        return trainer.record_trainer_intake(domain='Cod',kind='fact',title='lesson',
+            content=CODE+'\n\nTrainer-provided intake context (not independently verified):\n'+'\n\n'.join(context),
+            source={'trainer_context':context})
+    one=submit('First note')
+    original=memory.store._find_path(one).read_bytes()
+    two=submit('Additional note')
+    assert one==two and memory.store._find_path(one).read_bytes()==original
+    assert 'Additional note' in str(mind.memory_service.processing.intake_receipts(one))

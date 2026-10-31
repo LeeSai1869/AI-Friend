@@ -1284,7 +1284,8 @@ runtime_inventory:
   whisperkit:
     installed: true
     cli: /opt/homebrew/bin/whisperkit-cli
-    status: provider_ready_model_not_registered
+    model_path: null
+    status: provider_ready_model_path_required
   mflux:
     installed: true
     cli: /Library/Frameworks/Python.framework/Versions/3.14/bin/mflux-generate

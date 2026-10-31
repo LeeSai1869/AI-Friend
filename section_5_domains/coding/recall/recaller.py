@@ -29,7 +29,7 @@ class CodingRecaller:
             lines = []
 
             if successes:
-                lines.append("Previously successful solutions:")
+                lines.append("Retrieved tested observations/examples (check verification scope and applicability):")
                 for item in successes:
                     lines.append(
                         f"  [{item['state']}] {item['title']} "

@@ -32,6 +32,16 @@ def serialized_knowledge(method):
     return call
 
 
+def serialized_intake(method):
+    from functools import wraps
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        from .locking import memory_lock
+        with memory_lock(self._bridge.memory.store.memory_root, '.intake-write.lock'):
+            return method(self, *args, **kwargs)
+    return call
+
+
 class MemoryService:
     """Central entry point for memory operations."""
 
@@ -217,6 +227,7 @@ class MemoryService:
             raise ValueError(f"unknown domain prefix: {domain}")
         return MemoryClient(self, actor.strip(), role.strip(), domain)
 
+    @serialized_intake
     def _record_trainer_intake(
         self,
         *,
@@ -239,6 +250,24 @@ class MemoryService:
         if not title.strip() or not content.strip():
             raise ValueError("intake title and content must be non-empty")
 
+        def source_text(text, metadata):
+            context = (metadata or {}).get("trainer_context")
+            if isinstance(context, list) and context and all(isinstance(row,str) for row in context):
+                suffix = "\n\nTrainer-provided intake context (not independently verified):\n" + "\n\n".join(context)
+                if text.endswith(suffix):
+                    return text[:-len(suffix)]
+            return text
+        submitted_source = source_text(content, source)
+        # Exact content identity is scoped to its domain and kind. Different
+        # intake provenance is retained as a receipt, never by rewriting Raw.
+        for previous in self._bridge.memory.store.iter_entries():
+            if (previous.memory_class == "raw" and previous.status == "active"
+                    and previous.domain_created == domain and previous.kind == kind
+                    and source_text(previous.content, previous.source) == submitted_source):
+                self.processing.record_intake(previous.id, duplicate=True, actor=actor,
+                    source=source,source_refs=source_refs,title=title,tags=tags)
+                self.enqueue_raw(previous.id)
+                return previous.id
         entry = self._bridge.memory.record(
             domain=domain,
             kind=kind,
@@ -257,6 +286,8 @@ class MemoryService:
             ),
         )
         try:
+            self.processing.record_intake(entry.id, duplicate=False, actor=actor,
+                source=source,source_refs=source_refs,title=title,tags=tags)
             self.enqueue_raw(entry.id)
         except Exception as exc:
             # Storage succeeded. Queue recovery can discover this source later.
@@ -463,6 +494,18 @@ class MemoryService:
             "decision_reason": decision_reason.strip(),
             "approved_by": approved_by,
         }
+
+        fingerprint = source_payload.get("verified_example_fingerprint")
+        if fingerprint:
+            for entry in self._bridge.memory.store.iter_entries():
+                if (entry.memory_class == approved_class and entry.status == "active"
+                        and entry.kind == proposal["kind"] and entry.domain_created == proposal["domain"]
+                        and (entry.source or {}).get("verified_example_fingerprint") == fingerprint):
+                    proposal.update({"status":"approved","decision":"approved","decided_by":approved_by,
+                        "decided_at":time.time(),"decision_reason":"Reused a matching verified example",
+                        "approved_class":approved_class,"memory_id":entry.id,"reused_existing":True})
+                    self._save_knowledge_journal()
+                    return copy.deepcopy(proposal)
 
         if source_payload.get("intake_examiner_version"):
             comparison = self.reconcile_candidate(proposal)
