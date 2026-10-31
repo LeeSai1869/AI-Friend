@@ -6,6 +6,7 @@ Four write operations and several read operations.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -35,6 +36,19 @@ class MemoryBridge:
             memory_class=memory_class,
             limit=limit,
         )
+        # Preserve exact phrase matching first. Natural questions rarely occur
+        # verbatim in stored knowledge, so use explainable token overlap only
+        # when exact matching finds nothing. Similarity is not verification.
+        if not entries and query.strip():
+            stop = {"a", "an", "the", "is", "are", "was", "were", "i", "my", "you", "your", "it", "of", "to", "in", "on", "and", "or", "for", "with", "how", "what", "can", "could", "please", "do", "does", "this", "that"}
+            terms = set(re.findall(r"\w+", query.casefold())) - stop
+            ranked = []
+            for entry in self.memory.search(query="", domain=domain, memory_class=memory_class, limit=1000000):
+                words = set(re.findall(r"\w+", (entry.title + " " + entry.content + " " + " ".join(entry.tags)).casefold()))
+                overlap = terms & words
+                if overlap:
+                    ranked.append((len(overlap) / max(1, len(terms)), entry.score, entry.id, entry))
+            entries = [item[3] for item in sorted(ranked, key=lambda row: (-row[0], -row[1], row[2]))[:limit]]
         if tags:
             tag_set = set(t.lower() for t in tags)
             entries = [
@@ -218,7 +232,11 @@ class MemoryBridge:
             "domain": entry.domain_created,
             "kind": entry.kind,
             "title": entry.title,
-            "content": entry.content[:500],
+            "content": entry.content[:12000],
+            "content_chars": len(entry.content),
+            "content_truncated": len(entry.content) > 12000,
+            "source": entry.source,
+            "retrieval_note": "Retrieved evidence, not proof of correctness; Raw is unverified",
             "tags": list(entry.tags),
             "state": entry.state(),
             "score": entry.score,

@@ -99,10 +99,20 @@ class BrowserInteract(Tool):
                         page.locator(args['wait_for_selector']).wait_for()
                     text = page.locator('body').inner_text()
                     links = page.locator('a[href]').evaluate_all('(nodes) => nodes.slice(0, 200).map(n => ({text:n.innerText, url:n.href}))')
+                    media = page.locator('img, video, audio').evaluate_all('(nodes) => nodes.slice(0,20).map(n => ({kind:n.tagName.toLowerCase(), src:n.currentSrc || n.src || "", label:n.alt || n.getAttribute("aria-label") || ""}))')
+                    requests = []
+                    consent = getattr(self.broker, 'consent_requests', None)
+                    if consent is not None:
+                        for mode in sorted({'video_frames' if item['kind'] == 'video' else 'image' for item in media if item['kind'] != 'audio'}):
+                            requests.append(consent.offer(
+                                description=f"May I revisit {page.url} and analyze {'up to three visible video frames (no audio)' if mode == 'video_frames' else 'a viewport screenshot'} with the image-reading tool? No memory will be written.",
+                                tool='browser_media', args={'url': page.url, 'allowed_origins': allowed, 'mode': mode}))
                     return {'ok': True, 'error': None, 'data': {
                         'url': page.url, 'title': page.title(), 'text': text[:limit],
                         'chars': len(text), 'truncated': len(text) > limit,
-                        'links': links, 'observations': observations, 'steps_completed': len(steps),
+                        'links': links, 'observations': observations, 'media': media,
+                        'permission_requests': requests,
+                        'audio_analysis': 'unavailable: no registered audio-transcription adapter', 'steps_completed': len(steps),
                         'blocked_requests': sorted(blocked), 'verification': 'unverified_external_source',
                         'fetched_at': datetime.now(timezone.utc).isoformat(),
                         'session': 'isolated_ephemeral', 'memory_written': False,

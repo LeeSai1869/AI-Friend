@@ -102,6 +102,36 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
         self.assert_auth_required(sent)
         self.assertEqual(SafeFakeMind.constructions, 0)
 
+    def test_authenticated_media_decision_dispatches_only_approved_ticket(self):
+        from types import SimpleNamespace
+        from mind.consent import ConsentRequests
+        consent = ConsentRequests()
+        row = consent.offer(description="Read page?", tool="browser_media", args={"url":"https://example.org"})
+        calls = []
+        class MediaMind(SafeFakeMind):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
+                self.inventory = SimpleNamespace(all=lambda: [], get=lambda name: object())
+                self.broker.consent_requests = consent
+                self.broker.operation_owners = {"browser_media":"web"}
+                self.broker.bind_component = lambda info: SimpleNamespace(call=lambda name,args: calls.append((name,args)) or {"ok":True,"data":{"text":"scoped result"}})
+        sent = self.run_client([
+            {"op":"login","username":ADMIN_USER,"password":ADMIN_PASSWORD},
+            {"op":"permission_list"},
+            {"op":"permission_decide","request_id":row["request_id"],"approved":True},
+            {"op":"permission_decide","request_id":row["request_id"],"approved":True},
+        ], mind=MediaMind)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0], ("browser_media", {"request_id":row["request_id"]}))
+        results = self.messages_with_op(sent, "permission_result")
+        self.assertTrue(results[0]["result"]["ok"])
+        self.assertIn("already decided", results[1]["error"])
+
+    def test_unauthenticated_media_permission_cannot_be_granted(self):
+        sent = self.run_client([{"op":"permission_decide", "request_id":"forged", "approved":True}])
+        self.assert_auth_required(sent)
+        self.assertEqual(SafeFakeMind.constructions, 0)
+
     def test_unauthenticated_inventory_is_denied(self):
         sent = self.run_client([{"op": "inventory"}])
         self.assert_auth_required(sent)

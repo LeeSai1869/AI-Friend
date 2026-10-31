@@ -587,6 +587,16 @@ class MemoryClient:
         tags: Optional[List[str]] = None,
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
+        if self.role != "central_mind" and memory_class == "raw":
+            return []
+        if self.role != "central_mind" and memory_class is None:
+            # Filter classes before limiting, so inaccessible Raw records cannot
+            # crowd approved knowledge out of a domain's recall window.
+            entries = []
+            for allowed_class in ("tested", "derived"):
+                entries.extend(self._service._bridge.recall(query=query, memory_class=allowed_class,
+                               domain=domain, tags=tags, limit=limit))
+            return sorted(entries, key=lambda item: (-item.get("score", 0), item["id"]))[:limit]
         entries = self._service._bridge.recall(
             query=query,
             memory_class=memory_class,

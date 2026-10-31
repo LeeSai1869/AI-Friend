@@ -1,3 +1,4 @@
+import "../../shared/media_permissions.js";
 import {
   send,
   retryCommunication,

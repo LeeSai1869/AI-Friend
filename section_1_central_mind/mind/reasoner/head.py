@@ -82,10 +82,18 @@ class Reasoner:
                 seen.add(memory_id)
             combined.append(item)
 
-        return [
-            dict(item)
-            for item in combined[:self.DEFAULT_RECALL_LIMIT]
-        ]
+        selected = [dict(item) for item in combined[:self.DEFAULT_RECALL_LIMIT]]
+        # Budget recalled source text explicitly instead of silently overflowing
+        # the semantic provider's context as memories grow.
+        per_record = 24000 // max(1, len(selected))
+        for item in selected:
+            content = item.get("content")
+            if isinstance(content, str) and len(content) > per_record:
+                item.setdefault("content_chars", len(content))
+                item["content"] = content[:per_record]
+                item["content_truncated"] = True
+                item["context_limit_reason"] = "Mind recall text budget: 24000 characters shared across selected records"
+        return selected
 
     @staticmethod
     def _memory_ids(

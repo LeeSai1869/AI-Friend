@@ -155,6 +155,8 @@ class ToolBroker:
         self.guard = guard
         self.principal = principal
         self.inventory = inventory
+        from .consent import ConsentRequests
+        self.consent_requests = ConsentRequests()
 
         # Trusted effect-classification boundary.
         #
@@ -665,10 +667,13 @@ class ToolBroker:
                             result.get("error"))
 
     def _finish(self, name, args, start, ok, data, error):
-        entry = {"ts": start, "tool": name, "args": args, "ok": ok,
+        logged_args = dict(args)
+        if "data_base64" in logged_args:
+            logged_args["data_base64"] = "[binary payload omitted]"
+        entry = {"ts": start, "tool": name, "args": logged_args, "ok": ok,
                  "error": error, "duration_ms": int((time.time() - start) * 1000)}
         self.history.append(entry)
-        self.logger(f"[broker] {name}({args}) -> {'OK' if ok else 'ERR'} ({entry['duration_ms']}ms)")
+        self.logger(f"[broker] {name}({logged_args}) -> {'OK' if ok else 'ERR'} ({entry['duration_ms']}ms)")
         return {"ok": ok, "data": data, "error": error,
                 "meta": {"duration_ms": entry["duration_ms"], "call_index": self.call_count}}
 

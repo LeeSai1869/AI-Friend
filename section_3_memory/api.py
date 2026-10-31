@@ -151,21 +151,24 @@ class Memory:
         state: Optional[str] = None,
         limit: int = 50,
     ) -> List[Entry]:
+        # Build from disk for each query: other authenticated sessions may
+        # have appended entries since this Memory instance built its index.
+        index = Index(self.store)
         candidates = None
 
         if domain:
-            candidates = set(self.index.by_domain(domain))
+            candidates = set(index.by_domain(domain))
         if tag:
-            tag_set = set(self.index.by_tag(tag))
+            tag_set = set(index.by_tag(tag))
             candidates = tag_set if candidates is None else candidates & tag_set
         if kind:
-            kind_set = set(self.index.by_kind(kind))
+            kind_set = set(index.by_kind(kind))
             candidates = kind_set if candidates is None else candidates & kind_set
         if memory_class:
-            class_set = set(self.index.by_class(memory_class))
+            class_set = set(index.by_class(memory_class))
             candidates = class_set if candidates is None else candidates & class_set
         if status:
-            status_set = set(self.index.by_status(status))
+            status_set = set(index.by_status(status))
             candidates = status_set if candidates is None else candidates & status_set
 
         if candidates is None:

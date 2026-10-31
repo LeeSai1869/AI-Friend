@@ -1007,6 +1007,25 @@ async def handle_client(
                     }))
                     continue
 
+                if op in {"permission_list", "permission_decide"}:
+                    try:
+                        consent = mind.broker.consent_requests
+                        if op == "permission_list":
+                            await websocket.send(json.dumps({"op":"permission_requests", "requests":consent.list()}))
+                        else:
+                            row = consent.decide(str(data.get("request_id") or ""), data.get("approved"))
+                            result = None
+                            if row["state"] == "approved":
+                                owner = mind.broker.operation_owners.get(row["tool"])
+                                component = mind.inventory.get(owner)
+                                bound = mind.broker.bind_component(component)
+                                result = await asyncio.to_thread(bound.call, row["tool"], {"request_id":row["request_id"]})
+                            await websocket.send(json.dumps({"op":"permission_result", "request_id":row["request_id"],
+                                "state":row["state"], "result":result}))
+                    except Exception as exc:
+                        await websocket.send(json.dumps({"op":"permission_result", "error":str(exc)}))
+                    continue
+
                 if op in {"intake_processing_list", "intake_processing_retry", "intake_processing_resume"}:
                     if account["role"] not in {"trainer", "administrator"}:
                         await websocket.send(json.dumps({"op":"intake_processing_result","operation":op,"ok":False,"error":"Trainer or Administrator role required"}))

@@ -51,7 +51,19 @@ def test_rendered_browser_interaction_and_origin_boundary(tmp_path, monkeypatch)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     try:
-        result = BrowserInteract(tmp_path, None).call({'url': f'http://127.0.0.1:{server.server_port}',
+        from types import SimpleNamespace
+        from section_1_central_mind.mind.consent import ConsentRequests
+        from web.media import BrowserMedia
+        delegated = []
+        def read_media(name, args):
+            import base64
+            assert name == 'document_read'
+            assert base64.b64decode(args['data_base64']).startswith(b'\x89PNG')
+            delegated.append(name)
+            return {'ok': True, 'data': {'text': 'Practice tutor'}, 'error': None}
+        broker = SimpleNamespace(consent_requests=ConsentRequests(), inventory=SimpleNamespace(get=lambda name: object()),
+                                 bind_component=lambda info: SimpleNamespace(call=read_media))
+        result = BrowserInteract(tmp_path, broker).call({'url': f'http://127.0.0.1:{server.server_port}',
             'steps': [{'action': 'fill', 'selector': '#q', 'text': 'Teach me'},
                       {'action': 'click', 'selector': 'button'}, {'action': 'read', 'selector': '#reply'}]})
         assert result['ok'], result
@@ -61,6 +73,17 @@ def test_rendered_browser_interaction_and_origin_boundary(tmp_path, monkeypatch)
         assert data['verification'] == 'unverified_external_source'
         assert any('example.invalid' in request for request in data['blocked_requests'])
         assert any(request.endswith('/private') for request in data['blocked_requests'])
+        request = data['permission_requests'][0]
+        assert request['state'] == 'pending' and not delegated
+        broker.consent_requests.decide(request['request_id'], True)
+        media_tool = BrowserMedia(tmp_path, broker)
+        assert media_tool.effects({'request_id': request['request_id']})
+        analysis = media_tool.call({'request_id': request['request_id']})
+        assert analysis['ok'], analysis
+        assert delegated == ['document_read']
+        assert analysis['data']['memory_written'] is False
+        assert not media_tool.call({'request_id': request['request_id']})['ok']
+
     finally:
         server.shutdown(); server.server_close(); worker.join()
 

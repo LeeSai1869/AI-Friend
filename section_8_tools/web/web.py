@@ -240,4 +240,6 @@ class WebFetch(Tool):
 
 from .browser import BrowserInteract
 
-TOOLS = [WebSearch, WebFetch, BrowserInteract]
+from .media import BrowserMedia
+
+TOOLS = [WebSearch, WebFetch, BrowserInteract, BrowserMedia]

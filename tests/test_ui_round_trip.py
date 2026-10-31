@@ -231,6 +231,17 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         coding.on('pageerror', lambda error: errors.append(str(error)))
         coding.goto(stack['url'] + '/window-code.html')
         expect(coding.locator('#auth-overlay')).to_be_hidden(timeout=15000)
+        # Human media denial is authenticated and shared with the session's
+        # backend; clicking it must never start media processing.
+        consent = stack['events']['minds'][0].broker.consent_requests
+        offered = consent.offer(description='May I inspect this page screenshot?', tool='browser_media',
+                                args={'url':'https://example.org','allowed_origins':['https://example.org'],'mode':'image'})
+        permission_panel = chat.get_by_role('complementary', name='Media permissions')
+        expect(permission_panel).to_contain_text('May I inspect this page screenshot?', timeout=15000)
+        permission_panel.get_by_role('button', name='Deny', exact=True).click()
+        expect(permission_panel).to_contain_text('Media analysis denied.', timeout=15000)
+        assert not consent.list()
+        permission_panel.get_by_role('button', name='Dismiss results').click()
         (stack['project'] / 'assets').mkdir()
         (stack['project'] / 'assets/image.png').write_bytes(b'PNG')
         (stack['project'] / 'assets/info.txt').write_text('Nested text file')
