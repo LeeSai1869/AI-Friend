@@ -34,6 +34,7 @@ cleanup() {
 trap cleanup EXIT
 python3 -m venv "$app_support/runtime/venv"
 "$app_support/runtime/venv/bin/python" -m pip install -r requirements-runtime.txt
+"$app_support/runtime/venv/bin/python" -m playwright install chromium
 npm ci --prefix section_0_app
 CARGO_TARGET_DIR="$build_root/target" npm run build --prefix section_0_app -- --bundles app
 built_app="$build_root/target/release/bundle/macos/AI Friend.app"
@@ -48,6 +49,8 @@ swiftc -O \
 cp "$repo_root/section_0_app/src-tauri/speech-helper-Info.plist" \
   "$speech_bundle/Contents/Info.plist"
 plutil -lint "$speech_bundle/Contents/Info.plist"
+# Bundles must remain launchable when an administrator later owns the code.
+chmod -R a+rX,go-w "$built_app"
 mkdir -p "$install_dir" "$app_support/backups" "$app_support/state"
 target_app="$install_dir/AI Friend.app"
 # Preserve a complete previous installation and migrate DATA only, never old code.
@@ -77,5 +80,5 @@ mv "$stage/AI Friend.app" "$target_app"
 legacy_build_app="$repo_root/section_0_app/src-tauri/target/release/bundle/macos/AI Friend.app"
 if [[ -d "$legacy_build_app" ]]; then rm -rf "$legacy_build_app"; fi
 echo "Installed: $target_app"
-echo "Look for Build 2026.10.31.1 · UI / Mind connected in the app."
+echo "Look for Build 2026.10.31.2 · UI / Mind connected in the app."
 open "$target_app"

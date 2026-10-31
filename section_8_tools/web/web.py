@@ -213,4 +213,6 @@ class WebFetch(Tool):
         }
 
 
-TOOLS = [WebSearch, WebFetch]
+from .browser import BrowserInteract
+
+TOOLS = [WebSearch, WebFetch, BrowserInteract]

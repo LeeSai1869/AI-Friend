@@ -210,6 +210,8 @@ class CodingOrgan(Organ):
                 "project_open": True,
                 "project": self.project_context.project.to_dict(),
                 "top_level": top_level,
+                "file_count": len(self.project_context.tree.files()),
+                "file_count_scope": "Files visible in the Coding project inventory; project exclusions apply",
             },
         }
 
