@@ -92,3 +92,24 @@ def test_trusted_planning_capability_cannot_be_reclassified_as_a_write(tmp_path)
     result=domain.handle({'text':'Plan implementation','caller':object(),'broker':Broker(),
         'cognitive_plan':{'steps':[{'kind':'domain','component':'coder','capability':'plan_code'}]}})
     assert result['status']=='ok' and result['artifacts']==[]
+
+
+def test_new_test_file_is_included_in_candidate_execution_before_any_write():
+    domain=CodingOrgan()
+    domain.classifier=SimpleNamespace(classify=lambda **kwargs:{'kind':'code_change',
+        'files':['add.py','test_add.py'],'summary':'Create implementation and tests'})
+    domain.recaller=SimpleNamespace(recall=lambda **kwargs:'')
+    observed={};calls=[]
+    def execute(**kwargs):
+        observed.update(kwargs)
+        return {'status':'needs_answers','artifacts':[],'error':'test runtime probe'}
+    domain.execution=SimpleNamespace(run=execute)
+    def call(name,args):
+        calls.append(name)
+        return {'ok':False,'error':'not found: '+args['path']}
+    result=domain.handle({'text':'Create add.py and test_add.py with tests',
+                         'broker':SimpleNamespace(call=call),'caller':object(),
+                         'cognitive_plan':{'selected_capability':'write_code'}})
+    assert observed['tests']==['test_add.py']
+    assert set(observed['allowed_files'])=={'add.py','test_add.py'}
+    assert 'write_file' not in calls and result['status']=='needs_answers'

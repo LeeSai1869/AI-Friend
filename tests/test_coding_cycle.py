@@ -81,3 +81,11 @@ def test_only_observed_runs_can_be_evaluated_as_learning_evidence():
     verdict = evidence.evaluate(upstream)
     assert verdict['ok'] and verdict['evidence']['functional_correctness_established'] is False
     assert evidence.evaluate({**candidate, 'content': 'The program works correctly'})['testable'] is False
+
+
+def test_write_and_repair_both_require_machine_readable_json():
+    caller=caller_with('plain source is not a writes object',json.dumps({'writes':[{'path':'a.py','content':'answer=42'}]}))
+    writes,attempts,blocked=CodingCycle().generate(caller=caller,prompt='Create a.py',allowed_files={'a.py'})
+    assert blocked is None and writes[0]['content']=='answer=42'
+    assert [call['structured_output'] for call in caller.calls]==['json','json']
+    assert 'Never return bare source' in caller.calls[-1]['messages'][-1]['content']

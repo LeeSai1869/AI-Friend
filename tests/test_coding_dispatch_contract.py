@@ -34,3 +34,44 @@ def test_material_clarification_remains_allowed_after_dispatch_repair():
 def test_existing_clarification_is_not_forced_into_a_write():
     result, calls = dispatch({'kind': 'clarify', 'questions': ['Which output format?']})
     assert result['status'] == 'needs_answers' and len(calls) == 1
+
+
+def test_single_step_cannot_expand_to_later_global_file_targets():
+    organ=CodingOrgan()
+    classifications=iter([
+        {'kind':'code_change','files':['add_values.py','test_add_values.py']},
+        {'kind':'code_change','files':['add_values.py']},
+    ])
+    tasks=[];reads=[]
+    def classify(**kwargs):
+        tasks.append(kwargs['task'])
+        return next(classifications)
+    organ.classifier=SimpleNamespace(classify=classify)
+    organ.recaller=SimpleNamespace(recall=lambda **kwargs:'')
+    broker=SimpleNamespace(call=lambda name,args: reads.append(args['path']) or {'ok':False,'error':'guard denied'})
+    response=organ.handle({'text':'Original objective: create add_values.py and test_add_values.py',
+        'broker':broker,'caller':object(),'cognitive_plan':{
+            'steps':[{'kind':'domain','component':'coder','capability':'write_code','objective':'Create add_values.py with add(a: int, b: int) -> int.'}],
+            'requirements':['Later create test_add_values.py and run the tests.']}})
+    assert len(tasks)==2 and 'Scope correction' in tasks[1]
+    assert 'Later create test_add_values.py' in tasks[0]  # global requirements were not discarded
+    assert reads==['add_values.py'] and response['status']=='error'
+
+
+def test_repeated_scope_violation_is_rejected_before_file_access():
+    organ=CodingOrgan()
+    organ.classifier=SimpleNamespace(classify=lambda **kwargs:{'kind':'code_change','files':['later.py']})
+    organ.recaller=SimpleNamespace(recall=lambda **kwargs:'')
+    result=organ.handle({'text':'Create first.py then later.py','broker':object(),'caller':object(),
+        'cognitive_plan':{'steps':[{'kind':'domain','component':'coder','capability':'write_code','objective':'Create first.py'}]}})
+    assert result['status']=='error' and result['artifacts']==[]
+    assert 'scope' in result['error']
+
+
+def test_current_step_can_explicitly_request_conventional_tests_but_global_context_cannot():
+    from section_5_domains.coding.conventions import delegated_write_scope
+    def scope(objective):
+        return delegated_write_scope({'steps':[{'kind':'domain','objective':objective}],
+                                      'requirements':['Create tests for every file']})
+    assert scope('Create package/add.py and add tests')==['package/add.py','package/test_add.py']
+    assert scope('Create package/add.py then run tests')==['package/add.py']

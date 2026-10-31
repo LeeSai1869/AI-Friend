@@ -71,7 +71,7 @@ class CodingClassifier:
         try:
             reply = request_model(caller,
                 capability="plan",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": prompt}], structured_output="json",
             )
         except Exception as exc:
             return {

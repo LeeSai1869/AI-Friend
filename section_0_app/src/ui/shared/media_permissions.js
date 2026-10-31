@@ -12,15 +12,22 @@ close.onclick = () => { outcome.textContent = ''; panel.style.display = requests
 panel.append(requests, outcome, close);
 document.body.append(panel);
 
+let permissionListPending = false;
 function refresh() {
-  if (isAuthenticated()) sendRaw({ op:'permission_list' });
+  // A long model turn serializes this session's backend operations. Never
+  // accumulate polling requests while its first response is still outstanding.
+  if (isAuthenticated() && !permissionListPending) {
+    permissionListPending = true;
+    sendRaw({ op:'permission_list' });
+  }
 }
 onAuthenticated(refresh);
-onAuthStateChange(() => { if (!isAuthenticated()) { requests.replaceChildren(); outcome.textContent = ""; panel.style.display = "none"; } });
+onAuthStateChange(() => { if (!isAuthenticated()) { permissionListPending = false; requests.replaceChildren(); outcome.textContent = ""; panel.style.display = "none"; } });
 setInterval(refresh, 5000);
 onMessage(message => {
   if (!isAuthenticated()) { panel.style.display = 'none'; return; }
   if (message.op === 'permission_requests') {
+    permissionListPending = false;
     requests.replaceChildren();
     for (const request of message.requests || []) {
       const card = document.createElement('div');

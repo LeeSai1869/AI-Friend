@@ -177,3 +177,30 @@ def test_openai_compatible_json_mode_and_truncation(monkeypatch):
     with pytest.raises(ValueError, match='output_token_limit_reached'):
         provider.chat([], model_name='arbitrary')
     assert captured[0]['response_format'] == {'type': 'json_object'}
+
+
+def test_caller_coding_protocol_requests_json_and_rejects_plain_code_before_fallback(tmp_path):
+    from section_1_central_mind.mind.caller import Caller
+    routing=router(tmp_path,{'a':model(),'b':model()},availability_probe=lambda _:True)
+    caller=Caller(None,None,router=routing)
+    seen=[]
+    def invoke(key,resource,messages,**kwargs):
+        seen.append(resource['_generation']['structured_output'])
+        return 'def add(a,b): return a+b' if key=='a' else '{"writes":[{"path":"add.py","content":"answer=42"}]}'
+    caller._invoke_resource=invoke
+    result=caller.route(domain='coding',capability='debug',messages=[],structured_output='json')
+    assert json.loads(result)['writes'][0]['path']=='add.py'
+    assert seen==['json','json'] and caller.last_source['name']=='b'
+
+
+def test_coding_json_requirement_reaches_ollama_http_payload(tmp_path,monkeypatch):
+    from section_1_central_mind.mind.caller import Caller
+    payloads=[]
+    class Response:
+        def raise_for_status(self):pass
+        def json(self):return {'message':{'content':json.dumps({'writes':[{'path':'a.py','content':'answer=42'}]})},'done_reason':'stop'}
+    monkeypatch.setattr('requests.post',lambda url,**kwargs:payloads.append(kwargs['json']) or Response())
+    caller=Caller(None,None,router=router(tmp_path,{'chosen-by-registry':model()},availability_probe=lambda _:True))
+    caller.route(domain='coding',capability='write',messages=[],structured_output='json')
+    assert payloads[0]['format']=='json'
+    assert payloads[0]['model']=='arbitrary:latest'

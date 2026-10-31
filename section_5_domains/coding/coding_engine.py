@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 
 from mind.organ import Organ
 from .project_context import CodingProjectContext
-from .conventions import conventional_test_path, module_under_test, plan_requirements_block
+from .conventions import conventional_test_path, module_under_test, plan_requirements_block, delegated_write_scope
 from .classification import CodingClassifier
 from .inspection import CodingInspector
 from .recall import CodingRecaller
@@ -360,6 +360,11 @@ class CodingOrgan(Organ):
                 return {"status": "error", "error": str(exc), "artifacts": []}
         task = (request.get("text") or "").strip()
         task += plan_requirements_block(request.get("cognitive_plan"))
+        step_scope = (delegated_write_scope(request.get("cognitive_plan"))
+                      if selected_capability(request.get("cognitive_plan")) == "write_code" else [])
+        if step_scope:
+            task += "\nCurrent delegated step may write only these named targets: " + ", ".join(step_scope)
+            task += ". Original objective/global requirements are context; do not implement later steps in this operation."
         answers = request.get("answers")
         if isinstance(answers, dict) and any(value for value in answers.values()):
             import json
@@ -414,6 +419,16 @@ class CodingOrgan(Organ):
             if classified.get("kind") not in {"code_change", "clarify", "error"}:
                 return {"status": "error", "operation": "no_change", "artifacts": [],
                         "error": "Coding classification did not honor write_code after one correction. No files were written."}
+
+        if (step_scope and classified.get("kind") == "code_change"
+                and isinstance(classified.get("files"),list)
+                and any(path not in step_scope for path in classified["files"])):
+            classified = self.classifier.classify(task=task +
+                "\nScope correction: return only this delegated step's targets, not the entire user task. "
+                "Return code_change or a material clarification.",broker=broker,caller=caller,recalled_block=recalled_block)
+            if (classified.get("kind") not in {"code_change","clarify","error"}
+                    or any(path not in step_scope for path in (classified.get("files") or []))):
+                return {"status":"error","artifacts":[],"error":"Coding classification exceeded the delegated step's write scope after correction. No files were written."}
 
         kind = "inspect" if capability == "inspect_code" else classified.get("kind", "")
 
@@ -577,7 +592,7 @@ class CodingOrgan(Organ):
             return resource_question("functional tests must be existing files or explicitly planned artifacts")
         # A model may suggest extra targets, but cannot opt out of the
         # project's existing regression tests by returning an empty list.
-        tests = list(dict.fromkeys([*python_tests(inventory), *tests]))
+        tests = list(dict.fromkeys([*python_tests(inventory), *python_tests(allowed_files), *tests]))
         execution = self.execution.run(caller=caller, broker=broker, prompt=change_prompt,
             allowed_files=allowed_files, tests=tests,
             sources=inventory, acceptance_checks=(request.get("cognitive_plan") or {}).get("acceptance_checks", []))

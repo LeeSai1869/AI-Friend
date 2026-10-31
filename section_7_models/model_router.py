@@ -214,8 +214,8 @@ class ModelRouter:
         return {"ok": False, "output": "", "error": "no available model satisfied the resource requirement",
                 "attempts": attempts, "required_resource": dict(requirement)}
 
-    def try_capability(self, *, domain, capability, call_fn, messages, max_attempts=None, source_scores=None):
-        result = self.fulfill(requirement={"domain": domain, "capability": capability},
+    def try_capability(self, *, domain, capability, call_fn, messages, max_attempts=None, source_scores=None, structured_output=None):
+        result = self.fulfill(requirement={"domain": domain, "capability": capability, "structured_output":structured_output},
                               call_fn=call_fn, messages=messages,
                               source_scores=source_scores, max_attempts=max_attempts)
         yield from result["attempts"]

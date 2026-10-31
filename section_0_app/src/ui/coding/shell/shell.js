@@ -1,6 +1,7 @@
 import "../../shared/media_permissions.js";
 import {
   onAuthenticated,
+  onAuthStateChange,
   onMessage,
   send,
   retryCommunication,
@@ -233,6 +234,18 @@ document
       console.error("[coding/project] project selection failed:", error);
     }
   });
+
+onAuthStateChange((state) => {
+  if (!state.authenticated) {
+    const interrupted = Boolean(pendingTurn);
+    pendingTurn = null;
+    chatInput.setBusy(false);
+    conversation.clearToolStatus();
+    if (interrupted && state.connectionState === "disconnected") {
+      conversation.appendMessage("system", "Connection lost. The task may have completed in the backend. Reload this conversation before resending it.");
+    }
+  }
+});
 
 onAuthenticated(() => {
   sendDomainRequest("coder", "project_status", {});

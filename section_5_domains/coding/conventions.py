@@ -45,3 +45,23 @@ def plan_requirements_block(plan: Any, limit: int = 12, width: int = 300) -> str
     if not sections:
         return ""
     return "\n\nPlan details (keep exact names, signatures and type annotations):\n" + "\n".join(sections)
+
+
+def delegated_write_scope(plan):
+    """Conservative upper bound from explicit paths in one delegated objective.
+
+    Whole-task requirements remain context. They must not cause this step to
+    apply later planned changes. This infers no paths when none are named.
+    """
+    import re
+    if not isinstance(plan,dict):return []
+    steps=[row for row in plan.get('steps',[]) if isinstance(row,dict) and row.get('kind')=='domain']
+    if len(steps)!=1:return []
+    objective=steps[0].get('objective') or ''
+    paths=re.findall(r'(?<![\w/])((?:[\w.-]+/)*[\w.-]+\.(?:py|js|ts|jsx|tsx|json|yaml|yml|toml|rs|swift|html|css|txt|md))(?![\w.])',objective)
+    if re.search(r'\b(?:create|write|add)\s+(?:(?:unit|behavioral|functional|integration)\s+)?tests?\b',objective,re.I):
+        for path in list(paths):
+            pure=PurePosixPath(path)
+            if pure.suffix=='.py' and not pure.name.startswith('test_') and not pure.name.endswith('_test.py'):
+                paths.append(str(pure.with_name('test_'+pure.name)))
+    return list(dict.fromkeys(paths))

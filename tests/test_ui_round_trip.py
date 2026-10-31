@@ -210,6 +210,16 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
                 constructor(url, protocols) {
                     super(url === 'ws://127.0.0.1:8765' ? %s : url, protocols);
                 }
+                send(value) {
+                    let message;
+                    try { message = JSON.parse(value); } catch (_) {}
+                    if (window.__dropNextTestTurn && message?.text) {
+                        window.__dropNextTestTurn = false;
+                        setTimeout(() => this.close(), 25);
+                        return;
+                    }
+                    return super.send(value);
+                }
             };
             window.__TAURI__ = {
                 core: {invoke: (command, args) => window.nativeBridge(command, args)},
@@ -447,6 +457,13 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         expect(page.locator('#auth-overlay')).to_be_hidden(timeout=15000)
         expect(page.locator('#runtime-build')).to_contain_text('UI / Mind connected')
         assert page.evaluate('localStorage.length') == 0
+        page.evaluate('window.__dropNextTestTurn = true')
+        page.locator('#input').fill('transport-disconnect-test-marker')
+        page.locator('#send').click()
+        expect(page.locator('#chat-thread')).to_contain_text('Connection lost. The task may have completed', timeout=15000)
+        expect(page.locator('#chat-thread')).not_to_contain_text('Thinking…')
+        expect(page.locator('#auth-overlay')).to_be_hidden(timeout=15000)
+        assert not any('transport-disconnect-test-marker' in prompt for prompt in stack['events']['prompts'])
         page.locator('#btn-settings').click()
         page.get_by_role('button', name='Sign out', exact=True).click()
         expect(page.locator('#auth-overlay')).to_be_visible(timeout=15000)

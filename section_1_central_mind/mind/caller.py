@@ -82,6 +82,7 @@ class Caller:
         max_tokens: int = 2048,
         max_attempts: Optional[int] = None,
         source_scores=None,
+        structured_output: Optional[str] = None,
     ) -> str:
         """Route a request to the registry-declared priority list.
 
@@ -103,13 +104,15 @@ class Caller:
 
         attempts: List[Dict[str, Any]] = []
 
+        protocol = {"structured_output":structured_output} if structured_output is not None else {}
         for attempt in self.router.try_capability(
             domain=domain,
             capability=capability,
-            call_fn=partial(self._invoke_resource, max_tokens=max_tokens),
+            call_fn=partial(self._invoke_resource, max_tokens=max_tokens, operation=f"{domain}/{capability}"),
             messages=messages,
             max_attempts=max_attempts,
             source_scores=source_scores,
+            **protocol,
         ):
             attempts.append(attempt)
             if attempt.get("ok"):
@@ -137,6 +140,7 @@ class Caller:
         resource: Dict[str, Any],
         messages: List[Dict[str, str]],
         max_tokens=2048,
+        operation=None,
     ) -> str:
         try:
             from interface import (
@@ -161,7 +165,7 @@ class Caller:
             )
 
         if callable(self.on_status):
-            self.on_status(f"Using model resource {llm_key} ({provider.name})…")
+            self.on_status(f"Using model resource {llm_key} ({provider.name})" + (f" · {operation}" if operation else "") + "…")
         output = provider.chat(messages, model_name=execution_model, max_tokens=max_tokens)
         self.last_execution = {"provider": provider.name, "execution_model": execution_model}
         return output

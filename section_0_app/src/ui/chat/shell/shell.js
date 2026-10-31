@@ -76,8 +76,13 @@ const chatInput = createChatInput({
 
 onAuthStateChange((state) => {
   if (!state.authenticated) {
+    const interrupted = Boolean(pendingTurn);
     pendingTurn = null;
     chatInput.setBusy(false);
+    conversation.clearToolStatus();
+    if (interrupted && state.connectionState === "disconnected") {
+      conversation.appendMessage("system", "Connection lost. The task may have completed in the backend. Reload this conversation before resending it.");
+    }
   }
 });
 

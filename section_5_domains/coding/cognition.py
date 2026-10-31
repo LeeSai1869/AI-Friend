@@ -51,7 +51,7 @@ class CodingCycle:
         for number in range(1, self.MAX_ATTEMPTS + 1):
             try:
                 reply = request_model(caller, capability=capability if number == 1 else "debug",
-                                      messages=messages)
+                                      messages=messages, structured_output="json")
             except Exception as exc:
                 return [], attempts, resource_question(
                     "no suitable model answered the " + (capability if number == 1 else "debug") + " capability request"
@@ -113,7 +113,9 @@ class CodingCycle:
                 messages.extend([
                     {"role": "assistant", "content": str(reply)},
                     {"role": "user", "content": "Candidate rejected before writes: " + diagnosis +
-                     ". Correct the candidate using the same allowed paths. Return JSON only. "
+                     '. Correct the candidate using the same allowed paths. Return ONLY a JSON object '
+                     '{"writes":[{"path":"allowed/file.py","content":"full source with escaped newlines"}]}. '
+                     'Never return bare source, markdown or a tutorial. '
                      "If information is missing, return a questions list."},
                 ])
         result = resource_question("candidate validation failed after three attempts")
