@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 from html.parser import HTMLParser
+from urllib.parse import urljoin
+from .url_policy import check_url
 
 
 class _TextExtractor(HTMLParser):
@@ -71,6 +73,11 @@ class WebSearch(Tool):
         if not query:
             return {"ok": False, "data": None, "error": "query is required"}
 
+        try:
+            check_url("https://duckduckgo.com/")
+            check_url("https://www.bing.com/")
+        except (ValueError, PermissionError) as exc:
+            return {"ok": False, "data": None, "error": str(exc)}
         max_results = int(args.get("max_results") or 8)
 
         try:
@@ -91,6 +98,10 @@ class WebSearch(Tool):
 
         results = []
         for r in raw:
+            try:
+                check_url(r.get("href", ""))
+            except (ValueError, PermissionError):
+                continue
             results.append({
                 "title": r.get("title", ""),
                 "url": r.get("href", ""),
@@ -127,6 +138,7 @@ class WebFetch(Tool):
         if not re.match(r"^https?://", url):
             url = "https://" + url
 
+        check_url(url)
         return (
             ToolEffect(
                 action="network",
@@ -157,8 +169,10 @@ class WebFetch(Tool):
             }
 
         try:
+            check_url(url)
             resp = requests.get(
                 url,
+                allow_redirects=False,
                 timeout=20,
                 stream=True,
                 headers={
@@ -169,6 +183,17 @@ class WebFetch(Tool):
                     ),
                 },
             )
+            for _ in range(10):
+                if resp.status_code not in {301, 302, 303, 307, 308}:
+                    break
+                destination = urljoin(url, resp.headers.get("Location", ""))
+                resp.close()
+                check_url(destination)
+                url = destination
+                resp = requests.get(url, timeout=20, stream=True, allow_redirects=False)
+            else:
+                resp.close()
+                raise ValueError("Too many redirects")
             resp.raise_for_status()
         except Exception as e:
             return {"ok": False, "data": None, "error": f"fetch failed: {e}"}

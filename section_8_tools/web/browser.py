@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 
 from _base.tool import Tool
 from guard.contract import ToolEffect
+from .url_policy import check_url
 
 
 def origin(url):
@@ -30,6 +31,7 @@ class BrowserInteract(Tool):
     @staticmethod
     def validate(args):
         start = origin(args.get('url') or '')
+        check_url(args['url'])
         extra = args.get('allowed_origins') or []
         if not isinstance(extra, list) or len(extra) > 16:
             raise ValueError('allowed_origins must be a list of at most 16 origins')
@@ -66,8 +68,9 @@ class BrowserInteract(Tool):
                     blocked = set()
                     def route(request):
                         try:
+                            check_url(request.request.url)
                             permitted = origin(request.request.url) in allowed
-                        except ValueError:
+                        except (ValueError, PermissionError):
                             permitted = False
                         if permitted:
                             request.continue_()

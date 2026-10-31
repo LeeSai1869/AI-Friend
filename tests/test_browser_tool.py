@@ -39,11 +39,15 @@ def test_rendered_browser_interaction_and_origin_boundary(tmp_path, monkeypatch)
     monkeypatch.setattr(BrowserType, 'launch', lambda self, **kwargs: launch(self, executable_path='/usr/bin/chromium', **kwargs))
     class Page(BaseHTTPRequestHandler):
         def do_GET(self):
-            body = b'''<html><title>Practice tutor</title><body><input id="q"><button onclick="document.querySelector('#reply').innerText='Reply: '+document.querySelector('#q').value">Ask</button><p id="reply"></p><a href="https://example.invalid/">external</a><img src="https://example.invalid/pixel"></body></html>'''
+            body = b'''<html><title>Practice tutor</title><body><input id="q"><button onclick="document.querySelector('#reply').innerText='Reply: '+document.querySelector('#q').value">Ask</button><p id="reply"></p><a href="https://example.invalid/">external</a><img src="https://example.invalid/pixel"><img src="/private"></body></html>'''
             self.send_response(200); self.end_headers(); self.wfile.write(body)
         def log_message(self, *args):
             pass
     server = ThreadingHTTPServer(('127.0.0.1', 0), Page)
+    import json
+    policy = tmp_path / 'browser-policy.json'
+    policy.write_text(json.dumps({'version': 1, 'blocked': [f'http://127.0.0.1:{server.server_port}/private']}))
+    monkeypatch.setenv('AI_FRIEND_URL_POLICY', str(policy))
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     try:
@@ -56,6 +60,7 @@ def test_rendered_browser_interaction_and_origin_boundary(tmp_path, monkeypatch)
         assert data['steps_completed'] == 3 and data['memory_written'] is False
         assert data['verification'] == 'unverified_external_source'
         assert any('example.invalid' in request for request in data['blocked_requests'])
+        assert any(request.endswith('/private') for request in data['blocked_requests'])
     finally:
         server.shutdown(); server.server_close(); worker.join()
 

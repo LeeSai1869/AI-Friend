@@ -2,6 +2,7 @@ from section_8_tools.web.web import WebFetch
 
 
 class FetchResponse:
+    status_code = 200
     encoding = "utf-8"
     headers = {"Content-Type": "text/plain"}
 

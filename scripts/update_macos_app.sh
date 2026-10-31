@@ -80,5 +80,5 @@ mv "$stage/AI Friend.app" "$target_app"
 legacy_build_app="$repo_root/section_0_app/src-tauri/target/release/bundle/macos/AI Friend.app"
 if [[ -d "$legacy_build_app" ]]; then rm -rf "$legacy_build_app"; fi
 echo "Installed: $target_app"
-echo "Look for Build 2026.10.31.2 · UI / Mind connected in the app."
+echo "Look for Build 2026.10.31.3 · UI / Mind connected in the app."
 open "$target_app"
