@@ -400,6 +400,19 @@ class CodingOrgan(Organ):
             recalled_block=recalled_block,
         )
 
+        # The classifier refines the delegated operation; it cannot silently
+        # replace an explicit write assignment with a read-only plan.
+        if capability == "write_code" and classified.get("kind") in {"plan", "test", "inspect", "other"}:
+            classified = self.classifier.classify(
+                task=task + "\nDispatch correction: Central Mind delegated write_code. "
+                "Return code_change with the exact requested file paths, or clarify if a material "
+                "requirement is genuinely unresolved. Do not substitute a read-only plan.",
+                broker=broker, caller=caller, recalled_block=recalled_block,
+            )
+            if classified.get("kind") not in {"code_change", "clarify", "error"}:
+                return {"status": "error", "operation": "no_change", "artifacts": [],
+                        "error": "Coding classification did not honor write_code after one correction. No files were written."}
+
         kind = "inspect" if capability == "inspect_code" else classified.get("kind", "")
 
         if kind == "error":
