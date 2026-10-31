@@ -29,3 +29,22 @@ def test_audit_distinguishes_retained_migration_and_reused_ids(tmp_path):
     assert result['retained_legacy_copies']==[{'legacy_id':old,'canonical_id':'raw_original_abcdefgh'}]
     assert result['reused_legacy_ids']==[{'legacy_id':old,'raw_id':'raw_original_abcdefgh','canonical_class':'tested'}]
     assert result['errors']==[]
+
+
+def test_verification_report_excludes_private_text_and_marks_missing_evaluation(tmp_path):
+    folder=tmp_path/'Tested Memory';folder.mkdir()
+    row={'id':'mem_Cod_0000000000001','domain_created':'Cod','memory_class':'tested','kind':'observation',
+         'content':json.dumps({'kind':'verified_coding_example','files':[{'content':'PRIVATE CODE'}],
+            'verification':{'functional_tests':{'tests_run':2,'passed':2,'failures':0,'errors':0,'returncode':0,'output':'PRIVATE OUTPUT'}}}),
+         'source':{'memory_proposal':{'proposal_id':1,'approved_by':'central_mind'}},'source_refs':['private/file.py']}
+    path=folder/'record.json';path.write_text(json.dumps(row));before=path.read_bytes()
+    (tmp_path/'knowledge_proposals.json').write_text(json.dumps({'proposals':[
+        {'proposal_id':2,'domain':'Cod','status':'pending','content':'PRIVATE LESSON','title':'PRIVATE TITLE'},
+        {'proposal_id':3,'domain':'Cod','status':'pending','learning_evaluation':{'ok':False,'testable':False,'reason':'no matching run evidence: PRIVATE DETAIL'}}]}))
+    result=audit(tmp_path,verification=True)
+    assert result['tested_verification'][0]['evidence_flags']['tests_run']==2
+    assert result['tested_verification'][0]['approval_by_mind_recorded']
+    assert result['proposal_reviews'][0]['evaluation_recorded'] is False
+    assert result['proposal_reviews'][1]['evaluation_reason']=='no_matching_run_attestation'
+    assert 'PRIVATE' not in json.dumps(result) and 'private/file.py' not in json.dumps(result)
+    assert path.read_bytes()==before and result['writes_performed'] is False

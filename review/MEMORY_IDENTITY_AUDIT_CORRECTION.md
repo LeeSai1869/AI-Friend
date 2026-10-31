@@ -37,3 +37,19 @@ preservation of input bytes. Native laptop data must be re-audited after pulling
 Validation: 589 tests and 15 subtests passed; 4 optional integration tests skipped.
 This includes the separate-Raw/mainstream-counter regressions and audit tests.
 Git whitespace checks passed. No laptop data was accessed or changed remotely.
+
+## Read-only verification detail
+
+`python3 scripts/memory_audit.py --verification <memory-root>` reports Tested
+record approval flags, recorded behavioral-test counts, source-reference counts,
+ambiguous legacy references, and proposal decisions/evaluation availability.
+It omits lesson/code bodies, test output, source paths, titles and free-text
+reasons (known reasons are classified into diagnostic categories).
+
+A missing structured evaluation is not proof of rejection or of invalid memory:
+the current handler can return an evaluation without persisting it in the
+proposal journal. Old pending proposals therefore may have no recoverable reason
+in that file. The report does not rerun their evaluators, approve proposals,
+rewrite knowledge, or assert that counters alone establish correct behavior.
+Legacy plain-text facts can still be useful; their validation needs separate
+review. This script-only addition needs no app rebuild.
