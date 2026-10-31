@@ -149,5 +149,35 @@ class LearningLifecycleTests(unittest.TestCase):
         self.assertEqual(self.memory.count(), 0)
 
 
+    def test_pending_evaluation_survives_restart_without_creating_memory(self):
+        self.make_mind(_Untestable())
+        submitted = self.propose()
+        restored = MemoryService(Memory(root=Path(self.temp.name)))
+        row = restored.knowledge_proposal(submitted["proposal_id"])
+        self.assertEqual(row["status"], "pending")
+        self.assertFalse(row["learning_evaluation"]["testable"])
+        self.assertEqual(row["evaluated_by"], "test_domain")
+        self.assertEqual(len(row["evaluation_history"]), 1)
+        self.assertEqual(self.memory.count(), 0)
+        self.assertFalse(hasattr(self.client, "record_knowledge_evaluation"))
+
+    def test_approval_retains_evidence_and_later_review_does_not_rewrite_entry(self):
+        mind = self.make_mind(_Passing())
+        submitted = self.propose()
+        approved = mind.learn_memory_proposal(submitted["proposal_id"])
+        entry = self.memory.get(approved["memory_id"])
+        self.assertTrue(entry.source["memory_proposal"]["learning_evaluation"]["ok"])
+        path = self.memory.store._find_path(entry.id)
+        original = path.read_bytes()
+        self.make_mind(_Failing())._receive_memory_proposal(approved)
+        restored = MemoryService(Memory(root=Path(self.temp.name)))
+        row = restored.knowledge_proposal(submitted["proposal_id"])
+        self.assertEqual(row["status"], "approved")
+        self.assertFalse(row["learning_evaluation"]["ok"])
+        self.assertEqual(len(row["evaluation_history"]), 3)
+        self.assertEqual(row["evaluation_history"][-1]["proposal_status"], "approved")
+        self.assertEqual(path.read_bytes(), original)
+
+
 if __name__ == "__main__":
     unittest.main()

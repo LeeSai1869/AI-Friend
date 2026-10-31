@@ -342,7 +342,19 @@ class CentralMind:
         response.setdefault("_memory_domain", memory_domain)
         return response
 
-    def _receive_memory_proposal(
+    def _receive_memory_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        received = self._evaluate_memory_proposal(proposal)
+        service = getattr(self, "memory_service", None)
+        proposal_id = received.get("proposal_id")
+        if service is not None and type(proposal_id) is int:
+            persisted = service.record_knowledge_evaluation(proposal_id,
+                evaluation=received["learning_evaluation"],
+                evaluated_by=received.get("evaluated_by") or "central_mind")
+            received["evaluated_at"] = persisted["evaluated_at"]
+            received["evaluation_recorded"] = True
+        return received
+
+    def _evaluate_memory_proposal(
         self, proposal: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Inspect a submitted knowledge proposal through its owning domain.
@@ -415,6 +427,9 @@ class CentralMind:
                 "evidence": {},
             }
 
+        if type(verdict.get("ok")) is not bool or type(verdict.get("testable")) is not bool:
+            verdict = {"ok":False,"testable":False,
+                       "reason":"knowledge evaluator returned invalid boolean verdict fields", "evidence":{}}
         received["learning_evaluation"] = verdict
         received["evaluated_by"] = info.name
         return received

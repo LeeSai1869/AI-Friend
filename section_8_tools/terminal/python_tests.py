@@ -93,6 +93,21 @@ sys.exit(0 if result.wasSuccessful() and passed > 0 else 1)
 '''
 
 
+def runtime_image():
+    configured=os.environ.get('AI_FRIEND_TEST_IMAGE')
+    if configured is not None:
+        return configured.strip()
+    path=Path.home()/'Library/Application Support/AI Friend V1/runtime/test-image-id'
+    return path.read_text().strip() if path.is_file() else ''
+
+
+def docker_executable():
+    executable=shutil.which('docker')
+    if executable:return executable
+    bundled=Path('/Applications/Docker.app/Contents/Resources/bin/docker')
+    return str(bundled) if bundled.is_file() and os.access(bundled,os.X_OK) else None
+
+
 class RunPythonTests(Tool):
     name = 'run_python_tests'
     description = 'Run selected Python unittest or pytest modules in a resource-limited isolated source snapshot.'
@@ -141,10 +156,10 @@ class RunPythonTests(Tool):
     def call(self, args):
         try:
             paths, tests, overrides, timeout = self._validate(args)
-            image = os.environ.get('AI_FRIEND_TEST_IMAGE', '')
+            image = runtime_image()
             if not re.fullmatch(r'(?:[A-Za-z0-9_./:-]+@)?sha256:[a-f0-9]{64}', image):
                 raise ValueError('configure AI_FRIEND_TEST_IMAGE with a locally installed digest-pinned Python image')
-            docker = shutil.which('docker')
+            docker = docker_executable()
             if not docker:
                 raise ValueError('Docker is required for isolated functional testing')
             files = {}

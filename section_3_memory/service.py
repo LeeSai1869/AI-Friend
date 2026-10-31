@@ -437,6 +437,32 @@ class MemoryService:
             raise
         return copy.deepcopy(proposal)
 
+    @serialized_knowledge
+    def record_knowledge_evaluation(self, proposal_id, *, evaluation, evaluated_by):
+        """Trusted coordinator hook; deliberately absent from MemoryClient.
+
+        Save observations without approving a proposal or rewriting knowledge.
+        Every assessment remains in history, including failed revalidation.
+        """
+        if not isinstance(evaluation, dict) or not isinstance(evaluated_by, str) or not evaluated_by:
+            raise ValueError("Evaluation and evaluator identity are required")
+        if type(evaluation.get("ok")) is not bool or type(evaluation.get("testable")) is not bool:
+            raise ValueError("Evaluation must explicitly declare ok and testable")
+        proposal = self._find_knowledge_proposal(proposal_id)
+        before = copy.deepcopy(proposal)
+        recorded_at = time.time()
+        proposal.setdefault("evaluation_history", []).append({
+            "evaluated_at":recorded_at, "evaluated_by":evaluated_by,
+            "proposal_status":proposal["status"], "evaluation":copy.deepcopy(evaluation)})
+        proposal.update({"learning_evaluation":copy.deepcopy(evaluation),
+                         "evaluated_by":evaluated_by,"evaluated_at":recorded_at})
+        try:
+            self._save_knowledge_journal()
+        except Exception:
+            proposal.clear();proposal.update(before)
+            raise
+        return copy.deepcopy(proposal)
+
     def pending_knowledge_proposals(self) -> List[Dict[str, Any]]:
         """Return copies of pending proposals for Central Mind's review."""
         return [
@@ -493,6 +519,9 @@ class MemoryService:
             "approved_class": approved_class,
             "decision_reason": decision_reason.strip(),
             "approved_by": approved_by,
+            "learning_evaluation": copy.deepcopy(proposal.get("learning_evaluation")),
+            "evaluated_by": proposal.get("evaluated_by"),
+            "evaluated_at": proposal.get("evaluated_at"),
         }
 
         fingerprint = source_payload.get("verified_example_fingerprint")
