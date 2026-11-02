@@ -39,7 +39,10 @@ ORGAN = {
             "the requested outcome is actual code rather than only a plan."
         ),
         "test_code": (
-            "Test code or an implementation and report concrete test results."
+            "Execute existing test suites now through the guarded test runner and report actual run/pass/fail counts. "
+            "This is read-only with respect to project source files: a request not to modify files still permits this operation. "
+            "Missing historical test results are a reason to run this capability when execution is requested, "
+            "not to ask the user to supply a test log."
         ),
         "debug_code": (
             "Diagnose a bug, failure, traceback, incorrect behavior, or broken "

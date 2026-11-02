@@ -190,13 +190,17 @@ class ChatRuntime:
         try:
             cognition = result.get("cognition") or {}
             review = cognition.get("communication_review") or {}
+            from .diagnostics import plan_summary, execution_summary
+            compact_plan = plan_summary(cognition.get("plan") or {})
             record = {
+                "reasoning_steps": compact_plan.get("steps", []),
+                "execution_summary": execution_summary(result),
                 "ts": round(time.time(), 3),
                 "user": user_text[:200],
                 "status": result.get("status"),
                 "error": result.get("error"),
                 "disposition": cognition.get("disposition"),
-                "plan": json.dumps(cognition.get("plan") or {}, ensure_ascii=False, default=str)[:9000],
+                "plan": json.dumps(compact_plan, ensure_ascii=False, default=str),
                 "review_issues": review.get("issues"),
                 "audit_model": review.get("audit_model"),
                 "render_model": result.get("source_model"),

@@ -63,14 +63,15 @@ def browser_stack(tmp_path, monkeypatch):
                 objective = payload['objective']
                 pending = payload['supplied_context'].get('pending_clarification')
                 reading = 'read my ptoject files' in objective.lower()
-                needs_answer = '42' not in objective and not objective.lower().startswith('hello') and not reading
+                testing = objective.lower().startswith('run the existing')
+                needs_answer = '42' not in objective and not objective.lower().startswith('hello') and not reading and not testing
                 greeting = objective.lower().startswith('hello')
                 steps = [] if needs_answer else ([{
                     'step_id': 'say', 'objective': 'Greet the user', 'kind': 'communicate',
                     'component': None, 'capability': None, 'depends_on': [], 'confidence': .95,
                 }] if greeting else [
-                    {'step_id': 'implement', 'objective': objective if reading else 'Fix answer.py so answer() returns 42',
-                     'kind': 'domain', 'component': 'coder', 'capability': 'inspect_code' if reading else 'write_code',
+                    {'step_id': 'implement', 'objective': objective if reading or testing else 'Fix answer.py so answer() returns 42',
+                     'kind': 'domain', 'component': 'coder', 'capability': 'inspect_code' if reading else 'test_code' if testing else 'write_code',
                      'depends_on': [], 'confidence': .95},
                     {'step_id': 'explain', 'objective': 'Explain the verified outcome and changed files',
                      'kind': 'communicate', 'component': None, 'capability': None,
@@ -80,10 +81,10 @@ def browser_stack(tmp_path, monkeypatch):
                     assert pending and 'answer.py' in pending['objective']
                 output = json.dumps({
                     'objective_summary': objective,
-                    'requirements': ['Return 42 from answer()'] if not needs_answer and not greeting and not reading else [],
+                    'requirements': ['Return 42 from answer()'] if not needs_answer and not greeting and not reading and not testing else [],
                     'acceptance_checks': [{'id':'requested-value','requirement_ids':['R1'],'kind':'python_call',
                                           'payload':{'module':'answer','function':'answer','args':[],'expected':42}}]
-                                         if not needs_answer and not greeting and not reading else [],
+                                         if not needs_answer and not greeting and not reading and not testing else [],
                     'constraints': [],
                     'ambiguities': ['required return value'] if needs_answer else [],
                     'information_needs': [{'subject': 'required return value', 'reason': 'not supplied', 'material': True}] if needs_answer else [],
@@ -106,7 +107,8 @@ def browser_stack(tmp_path, monkeypatch):
                 if payload['objective'].lower().startswith('hello'):
                     output = 'Hello. How can I help?'
                 else:
-                    prefix = 'I read answer.py from the open project.\n' if 'ptoject' in payload['objective'] else 'Implemented answer.py and verified the selected behavior.\n'
+                    prefix = ('Executed existing tests without modifying project files.\n' if payload['objective'].lower().startswith('run the existing') else
+                              'I read answer.py from the open project.\n' if 'ptoject' in payload['objective'] else 'Implemented answer.py and verified the selected behavior.\n')
                     output = prefix + '\n'.join(item if isinstance(item, str) else json.dumps(item) for item in payload['verified_evidence'])
             elif 'Audit the Chat draft against the objective' in text:
                 remaining = events.get('audit_failures_remaining', 0)
@@ -332,6 +334,24 @@ def test_browser_clarification_coding_repair_and_shared_window_refresh(browser_s
         assert entries and all(entry.memory_class != 'raw' for entry in entries)
         coding.get_by_role('button', name='Run Python tests', exact=True).click()
         expect(coding.locator('#terminal')).to_contain_text('1 passed', timeout=30000)
+        # Reproduce the user's read-only run request. The semantic model is a
+        # fixture: this checks dispatch/report transport, not live interpretation.
+        trainer_memory = stack['events']['minds'][0].memory_service.client(actor='test_trainer',role='trainer',domain='Cod')
+        trainer_memory.record_trainer_intake(domain='Cod',kind='fact',title='Unrelated developer guide',
+            content='Run tests and report failed files. '*5000,
+            source={'files':[{'name':f'guide-{i}.txt'} for i in range(2000)]})
+        before_tests = {path.name:(path.read_bytes(),path.stat().st_mtime_ns)
+                        for path in stack['project'].glob('*.py')}
+        writers_before = stack['events']['writer_calls']
+        chat.locator('#btn-new-chat').click()
+        chat.locator('#input').fill('Run the existing test_answer.py tests without modifying any files. Report actual counts.')
+        chat.locator('#send').click()
+        expect(chat.locator('#chat-thread')).to_contain_text('Functional tests: 1 run, 1 passed',timeout=60000)
+        expect(chat.locator('.msg-outcome').last).to_contain_text('Execution: completed')
+        expect(chat.locator('.msg-outcome').last).to_contain_text('Verification: passed')
+        assert stack['events']['writer_calls']==writers_before
+        assert before_tests=={path.name:(path.read_bytes(),path.stat().st_mtime_ns)
+                              for path in stack['project'].glob('*.py')}
         # Reproduce the user's project-read request through the actual loop.
         chat.locator('#btn-new-chat').click()
         chat.locator('#input').fill('Can you read my ptoject files?')

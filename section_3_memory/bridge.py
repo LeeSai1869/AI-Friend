@@ -42,9 +42,13 @@ class MemoryBridge:
         if not entries and query.strip():
             stop = {"a", "an", "the", "is", "are", "was", "were", "i", "my", "you", "your", "it", "of", "to", "in", "on", "and", "or", "for", "with", "how", "what", "can", "could", "please", "do", "does", "this", "that"}
             terms = set(re.findall(r"\w+", query.casefold())) - stop
+            anchors = re.findall(r'(?<![\w/])[\w./-]+\.[a-z][a-z0-9]{0,9}(?!\w)', query.casefold())
             ranked = []
             for entry in self.memory.search(query="", domain=domain, memory_class=memory_class, limit=1000000):
-                words = set(re.findall(r"\w+", (entry.title + " " + entry.content + " " + " ".join(entry.tags)).casefold()))
+                searchable = (entry.title + " " + entry.content + " " + " ".join(entry.tags) + " " + " ".join(entry.source_refs)).casefold()
+                if anchors and not any(anchor in searchable for anchor in anchors):
+                    continue
+                words = set(re.findall(r"\w+", searchable))
                 overlap = terms & words
                 if overlap:
                     ranked.append((len(overlap) / max(1, len(terms)), entry.score, entry.id, entry))
@@ -55,7 +59,7 @@ class MemoryBridge:
                 e for e in entries
                 if tag_set & set(t.lower() for t in e.tags)
             ]
-        return [self._summarize(e) for e in entries]
+        return [self._summarize(e, query=query) for e in entries]
 
     def recall_tested(
         self,
@@ -225,22 +229,41 @@ class MemoryBridge:
             counts[name] = counts.get(name, 0) + 1
         return counts
 
-    def _summarize(self, entry) -> Dict[str, Any]:
+    def _summarize(self, entry, query="") -> Dict[str, Any]:
+        content = entry.content
+        anchors = re.findall(r'(?<![\w/])[\w./-]+\.[a-z][a-z0-9]{0,9}(?!\w)', query.casefold())
+        matches = [match.start() for anchor in anchors
+                   for match in [re.search(re.escape(anchor), content, re.IGNORECASE)] if match]
+        offset = max(0, min(matches) - 1500) if matches else 0
+        source = entry.source or {}
+        compact_source = {key: (value[:1000] if isinstance(value,str) else value)
+            for key,value in source.items() if key in {
+                "type","name","component","organ","capability","source_type","source_kind",
+                "source_path","url","sha256","legacy_id","verification_scope"}
+            and (value is None or isinstance(value,(str,int,float,bool)))}
+        compact_source["omitted_field_count"] = len(source)-len(compact_source)
+        if isinstance(source.get("files"),list):compact_source["source_file_count"] = len(source["files"])
+        approval = source.get("memory_proposal")
+        if isinstance(approval,dict):
+            compact_source["memory_proposal"] = {key:approval.get(key) for key in ["proposal_id","approved_by","approved_class"]}
         return {
             "id": entry.id,
             "memory_class": entry.memory_class,
             "domain": entry.domain_created,
             "kind": entry.kind,
-            "title": entry.title,
-            "content": entry.content[:12000],
+            "title": entry.title[:300],
+            "content": content[offset:offset+12000],
+            "content_offset": offset,
             "content_chars": len(entry.content),
-            "content_truncated": len(entry.content) > 12000,
-            "source": entry.source,
+            "content_truncated": offset > 0 or len(content) > offset+12000,
+            "source": compact_source,
             "retrieval_note": "Retrieved evidence, not proof of correctness; Raw is unverified",
-            "tags": list(entry.tags),
+            "tags": list(entry.tags)[:20],
+            "tags_total": len(entry.tags),
             "state": entry.state(),
             "score": entry.score,
             "success_count": entry.success_count,
             "failure_count": entry.failure_count,
-            "source_refs": list(entry.source_refs),
+            "source_refs": [str(ref)[:500] for ref in entry.source_refs[:20]],
+            "source_refs_total": len(entry.source_refs),
         }
