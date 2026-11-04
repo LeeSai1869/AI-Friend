@@ -1,6 +1,7 @@
 """General domain. Handles open-ended requests with plain responses."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict
 
 from mind.organ import Organ
@@ -31,6 +32,39 @@ class GeneralOrgan(Organ):
             return {"status": "ok", "output": reply}
         except Exception as e:
             return {"status": "error", "error": "No conversational model is available; check the configured model service."}
+
+    SELF_DESCRIPTION = Path(__file__).with_name("self_description.md")
+    SELF_DESCRIPTION_LIMIT = 8000
+
+    def handle_consultation(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Return bounded, read-only evidence describing AI Friend itself."""
+        consultation = request.get("consultation") or {}
+        if not isinstance(consultation, dict):
+            return {"status": "error", "error": "consultation payload must be a mapping"}
+        capability = str(
+            consultation.get("capability")
+            or request.get("evidence_capability")
+            or ""
+        ).strip()
+        if capability != "app_self_description":
+            return {
+                "status": "error",
+                "error": "unsupported General evidence capability: " + repr(capability),
+            }
+        try:
+            text = self.SELF_DESCRIPTION.read_text(encoding="utf-8")
+        except OSError as exc:
+            return {"status": "error", "error": "self description unavailable: " + str(exc)}
+        return {
+            "status": "ok",
+            "evidence": {
+                "capability": capability,
+                "kind": "curated_description",
+                "authority": "curated summary of AI Friend; the Constitution governs and live state comes from other evidence",
+                "truncated": len(text) > self.SELF_DESCRIPTION_LIMIT,
+                "content": text[: self.SELF_DESCRIPTION_LIMIT],
+            },
+        }
 
 
 ORGAN = GeneralOrgan()

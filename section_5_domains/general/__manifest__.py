@@ -14,6 +14,17 @@ ORGAN = {
             "action capability is the requested outcome."
         ),
     },
+    "evidence_capabilities": {
+        "app_self_description": {
+            "description": (
+                "Return a curated, read-only description of AI Friend itself: what Raw, Tested and Derived Memory are, "
+                "the user roles, the Central Mind loops, which domains exist and what the app can and cannot do today. "
+                "Consult this for questions about what the app is, how it works or what it can access, and before asking "
+                "the user about the app. It describes the app; it does not report live state such as which project is open."
+            ),
+            "read_only": True,
+        },
+    },
     "keywords": [],
     "entry_module": "general.general_engine",
     "entry_attr": "ORGAN",
