@@ -192,6 +192,24 @@ class Discovery:
             "rejected": rejected,
         }
 
+    _STOP = frozenset((
+        "a", "an", "the", "of", "in", "on", "to", "for", "and", "or", "is", "are",
+        "what", "how", "about", "with", "ai", "definition", "information", "details",
+    ))
+
+    @staticmethod
+    def _subject_overlap(need: str, evidence_subject: str) -> bool:
+        """Conservative word overlap: at least two shared significant words and half of the need's."""
+        import re
+        def words(text):
+            return {
+                w for w in re.findall(r"\w+", str(text or "").casefold())
+                if w not in Discovery._STOP and len(w) > 2
+            }
+        need_words, found = words(need), words(evidence_subject)
+        shared = need_words & found
+        return len(shared) >= 2 and len(shared) * 2 >= len(need_words)
+
     @staticmethod
     def unresolved_material_needs(
         information_needs: List[Dict[str, Any]],
@@ -228,6 +246,9 @@ class Discovery:
                 continue
 
             if subject in covered:
+                continue
+
+            if any(Discovery._subject_overlap(subject, other) for other in covered):
                 continue
 
             unresolved.append(dict(item))

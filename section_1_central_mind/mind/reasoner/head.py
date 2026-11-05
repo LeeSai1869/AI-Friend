@@ -20,6 +20,13 @@ from .consultation import Consultation
 
 class Reasoner:
     DEFAULT_RECALL_LIMIT = 8
+    INTERNAL_STATE_TERMS = (
+        "reasoning state",
+        "supplied context",
+        "recalled memory",
+        "gathered evidence",
+        "capability catalog",
+    )
     DEFAULT_MAX_ATTEMPTS = 1
     DEFAULT_MAX_CYCLES = 4
     DEFAULT_MAX_CONSULTATIONS = 3
@@ -737,6 +744,34 @@ class Reasoner:
             if subject in evidence_subjects:
                 need["subject"] = evidence_subjects[subject]
             normalized_needs.append(need)
+
+        # Needs about the Reasoner's own inputs are not human questions.
+        normalized_needs = [
+            need for need in normalized_needs
+            if not any(
+                term in " ".join(str(need.get("subject") or "").split()).casefold()
+                for term in self.INTERNAL_STATE_TERMS
+            )
+        ]
+
+        # A read-only consultation that returned evidence this turn covers the
+        # needs the planner proposed alongside it, unless the planner supplied a
+        # clarification candidate for a need (its signal that only the human can answer).
+        consulted = any(
+            isinstance(item, dict)
+            and (item.get("metadata") or {}).get("read_only_consultation") is True
+            for item in evidence
+        )
+        if consulted:
+            human_attributes = {
+                str(candidate.get("attribute") or "").strip()
+                for candidate in (proposal.get("clarification_candidates") or [])
+                if isinstance(candidate, dict)
+            }
+            normalized_needs = [
+                need for need in normalized_needs
+                if str(need.get("subject") or "").strip() in human_attributes
+            ]
 
         unresolved = self.discovery.unresolved_material_needs(
             normalized_needs,
