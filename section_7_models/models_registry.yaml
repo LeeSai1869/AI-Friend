@@ -1222,6 +1222,9 @@ routing:
   generation_by_capability:
     answer:
       think: false
+    reason:
+      think: null
+      max_tokens: 8000
   on_model_failure:
   - try_next_in_priority
   - after_all_fail_escalate_to_trainer
