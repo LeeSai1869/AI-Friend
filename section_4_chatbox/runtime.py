@@ -37,6 +37,24 @@ class ChatRuntime:
             return True
         return bool(self.legacy_store and self.legacy_store.delete(chat_id))
 
+    def record_feedback(
+        self,
+        chat_id: str,
+        turn_index: int,
+        rating: str,
+        comment: str = "",
+    ) -> Dict[str, Any]:
+        chat = self.store.load(chat_id)
+        if chat is None:
+            raise ValueError("chat not found")
+        feedback = chat.record_feedback(turn_index, rating, comment)
+        return {
+            "ok": True,
+            "chat_id": chat.chat_id,
+            "turn_index": turn_index,
+            "feedback": feedback,
+        }
+
     def open_chat(
         self,
         chat_id: Optional[str] = None,
@@ -166,6 +184,7 @@ class ChatRuntime:
                     "text": turn.text,
                     "ts": turn.ts,
                     "action": turn.action,
+                    "feedback": turn.feedback,
                 }
                 for turn in chat.turns
             ],
@@ -281,6 +300,17 @@ class ChatRuntime:
 
         status = str(result.get("status") or "")
         answer = self._final_text(result)
+        cognition = result.get("cognition")
+        if (
+            status == "error"
+            and isinstance(cognition, dict)
+            and cognition.get("disposition") == "reasoning_error"
+        ):
+            reason = str(result.get("error") or "Central Mind could not plan the request")
+            answer = (
+                "I couldn't make a verified plan for this request, "
+                "so I did not run or change anything. " + reason
+            )
         if status == "needs_answers":
             # Present the exact upstream questions as communication. The
             # server also forwards the structured fields for UI presentation.
@@ -321,6 +351,9 @@ class ChatRuntime:
         }
 
         for field in ("domain", "capability", "provider", "execution_model", "source_model", "source_llm", "artifacts", "memory_ids"):
+            if field in result:
+                response[field] = result[field]
+        for field in ("execution_receipt", "attempts", "functional_tests"):
             if field in result:
                 response[field] = result[field]
 

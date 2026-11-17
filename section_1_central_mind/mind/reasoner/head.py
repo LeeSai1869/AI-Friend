@@ -891,6 +891,7 @@ class Reasoner:
 
         prior: Optional[Dict[str, Any]] = None
         replanned = False
+        clarification_reconsidered = False
 
         while state.can_continue():
             state.begin_cycle()
@@ -935,7 +936,35 @@ class Reasoner:
             )
 
             if state.should_clarify:
-                break
+                if clarification_reconsidered:
+                    break
+                clarification_reconsidered = True
+                state.max_cycles = max(
+                    state.max_cycles,
+                    state.cycle_count + 1,
+                )
+                questions = [
+                    "%s: %s" % (
+                        str(item.get("attribute") or "unspecified information"),
+                        str(item.get("question") or ""),
+                    )
+                    for item in state.clarification_questions
+                ]
+                prior = {
+                    **proposal,
+                    "clarification_feedback": [
+                        "Central Mind requires a clarification to be grounded "
+                        "in a user-owned decision or information that no "
+                        "trusted capability can reasonably determine.",
+                        "Reconsider the objective and trusted capability "
+                        "catalog. If a capability can perform the task using "
+                        "the supplied information and safe defaults, propose "
+                        "that execution step instead of asking the user.",
+                        "Previously proposed questions: "
+                        + "; ".join(questions),
+                    ],
+                }
+                continue
 
             drops_before = len(getattr(self, "last_dropped_steps", None) or [])
             validated = self._validate_steps(
@@ -979,29 +1008,16 @@ class Reasoner:
                         state.clarification_questions = []
                         break
 
-            # A pure communication result is legitimate when understanding
-            # produced no executable domain work and no unresolved material
-            # human question remains.
+            # Communication must be an explicit, validated semantic proposal.
             if not state.missing_information:
-                state.candidate_steps = [{
-                    "step_id": "step_1",
-                    "objective": state.objective,
-                    "kind": "communicate",
-                    "component": None,
-                    "capability": None,
-                    "depends_on": [],
-                    "requirements": [],
-                    "constraints": [],
-                    "expected_outcome": (
-                        "communicate the answer to the human"
-                    ),
-                    "confidence": (
-                        state.understanding_confidence
-                    ),
-                    "rationale": [
-                        "no domain execution is required"
-                    ],
-                }]
+                state.reasoning_error = (
+                    "semantic understanding did not propose a validated "
+                    "domain or communication step; no action was executed"
+                )
+                state.rationale.append(
+                    "Central Mind did not fabricate a communication step "
+                    "after semantic planning produced no validated route"
+                )
                 break
 
             # Do not spin when nothing new can be discovered.

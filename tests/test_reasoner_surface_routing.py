@@ -436,6 +436,81 @@ def test_reasoner_asks_for_clarification_when_evidence_route_is_unavailable():
     }]
 
 
+def test_reasoner_reconsiders_unresolved_clarification_before_asking_user():
+    clarification_proposal = {
+        "objective_summary": "Create a file",
+        "requirements": [],
+        "constraints": [],
+        "ambiguities": [],
+        "information_needs": [{
+            "subject": "File name validation",
+            "reason": "The filename has not been validated.",
+            "material": True,
+        }],
+        "consultations": [],
+        "candidate_steps": [],
+        "clarification_candidates": [{
+            "attribute": "File name validation",
+            "question": "Could you clarify the file name?",
+            "options": [],
+            "default": None,
+        }],
+        "understanding_confidence": 0.6,
+        "rationale": ["The model is uncertain about filename validation."],
+    }
+
+    execution_proposal = _proposal()
+    execution_proposal["objective_summary"] = "Create a file"
+    execution_proposal["candidate_steps"][0].update({
+        "step_id": "create_file",
+        "objective": (
+            "Create the explicitly named file lalalalalala.md. "
+            "No content was requested, so create it empty."
+        ),
+        "capability": "write_code",
+        "expected_outcome": "The requested file exists and contains no content.",
+    })
+    calls = []
+
+    def semantic_router(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return json.dumps(clarification_proposal)
+        return json.dumps(execution_proposal)
+
+    reasoner = Reasoner(
+        inventory=_Inventory(),
+        semantic_router=semantic_router,
+    )
+    reasoner.DEFAULT_MAX_CYCLES = 1
+    plan = reasoner.plan('Please create a file named “lalalalalala.md"')
+
+    assert plan.reasoning_error is None
+    assert plan.should_clarify is False
+    assert plan.missing_information == []
+    assert len(plan.steps) == 1
+    assert (plan.steps[0].component, plan.steps[0].capability) == (
+        "coder", "write_code",
+    )
+    assert "lalalalalala.md" in plan.steps[0].objective
+    assert "clarification_feedback" in json.loads(
+        calls[1]["messages"][0]["content"]
+    )["prior_understanding"]
+    assert len(calls) == 2
+
+
+def test_reasoner_does_not_invent_communication_step_when_no_step_is_proposed():
+    proposal = _proposal()
+    proposal["candidate_steps"] = []
+
+    plan = _reasoner(proposal).plan("Create a file named report.txt")
+
+    assert plan.reasoning_error is not None
+    assert "no action was executed" in plan.reasoning_error
+    assert plan.steps == []
+    assert plan.should_clarify is False
+
+
 def test_reasoner_accepts_a_validated_multi_domain_plan():
     proposal = _proposal()
     proposal["candidate_steps"].append({

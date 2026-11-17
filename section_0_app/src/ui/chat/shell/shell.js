@@ -1,5 +1,6 @@
 import {
   send,
+  sendRaw,
   onMessage,
   onAuthenticated,
   onAuthStateChange,
@@ -35,6 +36,15 @@ import {
 } from "../../shared/account_controls/account_controls.js";
 
 const conversation = createConversation();
+conversation.setFeedbackHandler(({ chatId, turnIndex, rating, comment }) => {
+  sendRaw({
+    op: "chat_feedback",
+    chat_id: chatId,
+    turn_index: turnIndex,
+    rating,
+    comment,
+  });
+});
 const intent = createChatIntent();
 const topBar = createChatTopBar();
 createAccountControls({ onOpenIntake: openIntake });
@@ -80,6 +90,10 @@ onAuthStateChange((state) => {
 });
 
 onMessage((msg) => {
+  if (msg.op === "chat_feedback_result") {
+    conversation.applyFeedbackResult(msg);
+    return;
+  }
   if (msg.op === "shared_context") {
     topBar.setActiveProject(msg.active_project || null);
     return;

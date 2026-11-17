@@ -36,12 +36,33 @@ def test_failed_candidates_exhaust_budget_without_host_writes():
     calls = []
     def call(name, args):
         calls.append(name)
-        return result(False)
+        failed = result(False)
+        failed['data']['output'] = (
+            '=================================== FAILURES ===================================\n'
+            '___________________________ test_answer_returns_42 ____________________________\n'
+            'E       AssertionError: expected 42, got 41\n'
+            '=========================== short test summary info ============================\n'
+            'FAILED tests/test_answer.py::test_answer_returns_42 - AssertionError: expected 42, got 41\n'
+        )
+        return failed
     caller = SimpleNamespace(route=lambda **kwargs: json.dumps({'writes':[{'path':'answer.py','content':'value = 41'}]}))
     execution = CodingExecution().run(caller=caller, broker=SimpleNamespace(call=call), prompt='task',
         allowed_files=['answer.py'], tests=['test_answer.py'], sources=['answer.py','test_answer.py'])
     assert execution['status'] == 'error' and execution['artifacts'] == []
     assert calls == ['run_python_tests'] * 3
+    assert execution['execution_receipt']['candidate_applied'] is False
+    assert execution['execution_receipt']['checks'] == {
+        'harness_acceptance': ['test_answer.py'],
+        'model_generated': [],
+    }
+    assert execution['execution_receipt']['failing_tests'] == [{
+        'name': 'tests/test_answer.py::test_answer_returns_42',
+        'assertion': 'AssertionError: expected 42, got 41',
+    }]
+    assert 'No candidate was applied' in execution['output']
+    assert 'Nothing was written' in execution['output']
+    assert 'test_answer_returns_42' in execution['output']
+    assert 'expected 42, got 41' in execution['output']
 
 
 def test_test_runtime_unavailable_asks_for_resources_without_writes():
@@ -53,6 +74,43 @@ def test_test_runtime_unavailable_asks_for_resources_without_writes():
     execution = CodingExecution().run(caller=caller, broker=SimpleNamespace(call=call), prompt='task',
         allowed_files=['answer.py'], tests=['test_answer.py'], sources=['answer.py','test_answer.py'])
     assert execution['status'] == 'needs_answers' and calls == ['run_python_tests']
+
+
+def test_model_generated_test_files_are_run_and_labeled_separately():
+    calls = []
+    def call(name, args):
+        calls.append((name, args))
+        if name == 'run_python_tests':
+            return result(True)
+        return {'ok': True, 'data': {'returncode': 0}}
+    caller = SimpleNamespace(route=lambda **kwargs: json.dumps({'writes': [
+        {'path': 'answer.py', 'content': 'answer = 42\n'},
+        {'path': 'test_answer.py', 'content': 'def test_answer():\n    assert answer == 42\n'},
+    ]}))
+    execution = CodingExecution().run(
+        caller=caller, broker=SimpleNamespace(call=call), prompt='task',
+        allowed_files=['answer.py', 'test_answer.py'], tests=['test_existing.py'],
+        sources=['answer.py', 'test_existing.py'])
+    first_test_args = next(args for name, args in calls if name == 'run_python_tests')
+    assert first_test_args['paths'] == ['test_existing.py', 'test_answer.py']
+    assert execution['execution_receipt']['checks'] == {
+        'harness_acceptance': ['test_existing.py'],
+        'model_generated': ['test_answer.py'],
+    }
+
+
+def test_unapplied_test_file_is_reported_as_discarded_not_missing_information():
+    from section_5_domains.coding.operations import CodingOperations
+    result = CodingOperations().test(
+        broker=SimpleNamespace(),
+        inventory=['answer.py'],
+        paths=['test_answer.py'],
+    )
+    assert result['status'] == 'error'
+    assert result['execution_receipt']['discarded_tests'] == ['test_answer.py']
+    assert 'attempt discarded' in result['output'].lower()
+    assert 'No tests were run' in result['output']
+    assert 'no files were written' in result['output'].lower()
 
 
 def test_denied_application_stops_and_reports_partial_writes():

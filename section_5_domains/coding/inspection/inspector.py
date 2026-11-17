@@ -104,11 +104,51 @@ class CodingInspector:
             }
 
         try:
-            analysis = self.analyzer.analyze(
+            assessment = self.analyzer.assess(
                 task=task,
                 inspected=inspected,
                 caller=caller,
             )
+            remaining = (
+                self.analyzer.MAX_TOTAL_CHARACTERS
+                - sum(len(content) for content in inspected.values())
+            )
+            additional = []
+            if (
+                assessment["evidence_sufficient"] is False
+                and assessment["missing_context"].strip()
+                and remaining > 0
+            ):
+                additional = self.selector.select(
+                    task=task,
+                    project_files=project_files,
+                    caller=caller,
+                    project_memory=project_memory,
+                    project_history=project_history,
+                    project_rules=project_rules,
+                    excluded_files=list(inspected),
+                    followup_context=assessment["missing_context"],
+                )
+            truncated_files = list(self.analyzer.last_truncated_files)
+            unreadable_files = dict(self.analyzer.last_read_errors)
+            followup = {}
+            if additional and remaining > 0:
+                followup = self.analyzer.read_selected(
+                    selected_files=additional,
+                    broker=broker,
+                    remaining_characters=remaining,
+                )
+                inspected.update(followup)
+                truncated_files.extend(self.analyzer.last_truncated_files)
+                unreadable_files.update(self.analyzer.last_read_errors)
+            if followup:
+                analysis = self.analyzer.analyze(
+                    task=task,
+                    inspected=inspected,
+                    caller=caller,
+                )
+            else:
+                analysis = str(assessment["answer"]).strip()
         except Exception as exc:
             return {
                 "status": "error",
@@ -118,14 +158,50 @@ class CodingInspector:
                 ),
             }
 
+        indexed_limit = self.selector.MAX_INVENTORY_FILES
+        coverage = {
+            "project_files_indexed": len(project_files),
+            "inventory_limit_reached": len(project_files) >= indexed_limit,
+            "files_inspected": list(inspected),
+            "additional_batch_read": bool(followup),
+            "truncated_files": list(dict.fromkeys(truncated_files)),
+            "unreadable_files": unreadable_files,
+            "characters_inspected": sum(
+                len(content) for content in inspected.values()
+            ),
+            "context_character_limit": self.analyzer.MAX_TOTAL_CHARACTERS,
+        }
+        coverage_note = (
+            f"Inspection coverage: read {len(inspected)} file(s) from "
+            f"{len(project_files)} indexed; "
+            f"{'one additional batch was read' if coverage['additional_batch_read'] else 'no additional batch was needed'}."
+        )
+        if coverage["truncated_files"]:
+            coverage_note += (
+                " Truncated or not read within the context limit: "
+                + ", ".join(coverage["truncated_files"])
+                + "."
+            )
+        if coverage["unreadable_files"]:
+            coverage_note += (
+                " Unreadable files: "
+                + ", ".join(coverage["unreadable_files"])
+                + "."
+            )
+        if coverage["inventory_limit_reached"]:
+            coverage_note += (
+                f" The project inventory reached its {indexed_limit}-file limit."
+            )
+
         return {
             "status": "ok",
             "operation": "no_change",
-            "output": analysis,
+            "output": f"{analysis}\n\n{coverage_note}",
             "artifacts": [],
             "inspection": {
                 "project": project_context.project.to_dict(),
                 "files": list(inspected.keys()),
                 "writes": 0,
+                "coverage": coverage,
             },
         }

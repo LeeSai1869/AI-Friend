@@ -1,6 +1,8 @@
 """Coding's test coordinator. Execution belongs exclusively to guarded tools."""
 from __future__ import annotations
 
+import re
+
 
 class Tester:
     def run(self, *, broker, paths, sources, overrides=None):
@@ -18,6 +20,50 @@ class Tester:
                 and type(data.get('tests_run')) is int and data['tests_run'] > 0
                 and type(data.get('passed')) is int and data['passed'] > 0
                 and data.get('failures') == 0 and data.get('errors') == 0)
+
+    @staticmethod
+    def failure_details(result):
+        data = (result or {}).get('data') or {}
+        output = str(data.get('output') or '')
+        lines = output.splitlines()
+        markers = []
+
+        for index, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith('FAILED '):
+                summary = stripped[len('FAILED '):]
+                name, separator, assertion = summary.partition(' - ')
+                markers.append((index, name.strip(), assertion.strip() if separator else ''))
+            elif stripped.startswith(('FAIL:', 'ERROR:')):
+                name = stripped.split(':', 1)[1].strip()
+                markers.append((index, name, ''))
+
+        details = []
+        for marker_index, (line_index, name, summary_assertion) in enumerate(markers):
+            next_index = markers[marker_index + 1][0] if marker_index + 1 < len(markers) else len(lines)
+            block = lines[line_index + 1:next_index]
+            assertion = summary_assertion
+            if not assertion:
+                for line in block:
+                    value = line.strip()
+                    value = re.sub(r'^[E ]+\s?', '', value)
+                    if 'AssertionError:' in value:
+                        assertion = value[value.index('AssertionError:') + len('AssertionError:'):].strip()
+                    elif value.startswith(('assert ', 'assertion failed')):
+                        assertion = value
+                    if assertion:
+                        break
+            details.append({
+                'name': name or 'unknown test',
+                'assertion': assertion or 'test runner reported a failure without an assertion message',
+            })
+
+        if not details and (data.get('failures') or data.get('errors')):
+            details.append({
+                'name': 'unknown test',
+                'assertion': str(result.get('error') or 'test runner reported a failure'),
+            })
+        return details
 
 
     @staticmethod

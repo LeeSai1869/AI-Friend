@@ -414,7 +414,8 @@ class CentralMind:
 
         - testable + passed -> Tested
         - testable + failed -> Reject
-        - untestable system proposal -> Reject
+        - trusted observed-run evidence -> Derived
+        - other untestable system proposals -> Reject
 
         Reusable system-derived learning is proposed separately by Learner as
         Derived knowledge with provenance and evidence.
@@ -429,6 +430,12 @@ class CentralMind:
         testable = evaluation.get("testable") is True
         passed = evaluation.get("ok") is True
         reason = evaluation.get("reason")
+        evidence = evaluation.get("evidence")
+        observed_derived = (
+            evaluation.get("memory_class") == "derived"
+            and isinstance(evidence, dict)
+            and evidence.get("observed_run") is True
+        )
 
         if not isinstance(reason, str) or not reason.strip():
             reason = "No domain verification evidence was supplied."
@@ -441,6 +448,13 @@ class CentralMind:
             )
 
         if not testable:
+            if passed and observed_derived:
+                return self.decide_memory_proposal(
+                    proposal_id,
+                    approved=True,
+                    reason=f"Observed run retained as derived evidence: {reason}",
+                    memory_class="derived",
+                )
             return self.decide_memory_proposal(
                 proposal_id,
                 approved=False,
@@ -878,12 +892,15 @@ class CentralMind:
                 # Do not embed result inside its own cognition (which creates
                 # circular JSON), or leak prior nominal output after rejection.
                 public = {key: value for key, value in result.items()
-                          if key not in {"cognition", "output", "outputs", "communication"}}
+                          if key not in {"cognition", "outputs", "communication"}}
                 public["cognition"] = {
                     "plan": plan.as_dict(),
                     "step_results": {
                         key: {field: value for field, value in item.items()
-                              if field in {"status", "error", "errors", "artifacts"}}
+                              if field in {
+                                  "status", "error", "errors", "output", "artifacts",
+                                  "execution_receipt", "attempts", "functional_tests",
+                              } and (field != "output" or item.get("status") != "ok")}
                         for key, item in step_results.items()
                     },
                     "appraisals": all_appraisals,
@@ -1382,11 +1399,25 @@ class CentralMind:
             )
 
             evaluation = (learning or {}).get("learning_evaluation") or {}
+            learning_evidence = evaluation.get("evidence")
+            derived_observation = (
+                evaluation.get("memory_class") == "derived"
+                and isinstance(learning_evidence, dict)
+                and learning_evidence.get("observed_run") is True
+                and appraisal.objective_outcome in {"success", "failure", "partial"}
+            )
+            tested_success = (
+                evaluation.get("testable") is True
+                and evaluation.get("ok") is True
+                and verified.get("ok") is True
+                and appraisal.objective_outcome == "success"
+            )
             if (learning and learning.get("status") == "pending"
-                    and verified.get("ok") is True and appraisal.objective_outcome == "success"
-                    and evaluation.get("testable") is True and evaluation.get("ok") is True):
+                    and evaluation.get("ok") is True
+                    and (tested_success or derived_observation)):
                 # Review a demonstrated observation through the canonical
-                # Memory Service lifecycle. Never create Raw or rewrite entries.
+                # Memory Service lifecycle. Only behavioral passes become
+                # Tested; observed runs remain Derived.
                 learning = self.learn_memory_proposal(learning["proposal_id"])
 
             capability_proposal = (
@@ -1498,6 +1529,7 @@ class CentralMind:
             }
 
         out = self._format_combined(combined)
+        combined["output"] = out
         self.chat_log.append({
             "role": "mind",
             "text": out,
@@ -1518,6 +1550,9 @@ class CentralMind:
         )
 
     def _format_combined(self, combined: Dict[str, Any]) -> str:
+        output = combined.get("output")
+        if isinstance(output, str) and output.strip():
+            return output.strip()
         if combined.get("status") == "error":
             return "Errors:\n" + "\n".join(combined.get("errors", []))
         return str(combined)

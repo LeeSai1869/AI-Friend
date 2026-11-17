@@ -64,6 +64,7 @@ def test_recall_contains_solution_evidence_and_source_not_only_titles():
     bridge = SimpleNamespace(
         recall_tested=lambda **kwargs: [{'id': 'mem_1', 'state': 'tested', 'title': 'approach', 'content': 'Use the verified algorithm under condition X', 'score': .9, 'success_count': 4, 'failure_count': 0}],
         recall_rejections=lambda **kwargs: [],
+        recall=lambda **kwargs: [],
     )
     recalled = CodingRecaller().recall(task='task', memory_bridge=bridge)
     assert 'verified algorithm' in recalled and 'mem_1' in recalled
@@ -79,5 +80,7 @@ def test_only_observed_runs_can_be_evaluated_as_learning_evidence():
     evidence.remember(candidate, {'ok': True, 'reason': 'syntax only'})
     upstream = {**candidate, 'source': {**candidate['source'], 'component': 'coder'}}
     verdict = evidence.evaluate(upstream)
-    assert verdict['ok'] and verdict['evidence']['functional_correctness_established'] is False
+    assert verdict['ok'] and verdict['testable'] is False
+    assert verdict['memory_class'] == 'derived'
+    assert verdict['evidence']['functional_correctness_established'] is False
     assert evidence.evaluate({**candidate, 'content': 'The program works correctly'})['testable'] is False

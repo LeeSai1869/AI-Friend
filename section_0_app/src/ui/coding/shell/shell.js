@@ -22,6 +22,15 @@ import { renderChatRows } from "../../shared/chat_history/chat_history.js";
 
 let pendingTurn = null;
 const conversation = createCodingConversation();
+conversation.setFeedbackHandler(({ chatId, turnIndex, rating, comment }) => {
+  sendRaw({
+    op: "chat_feedback",
+    chat_id: chatId,
+    turn_index: turnIndex,
+    rating,
+    comment,
+  });
+});
 const intent = createChatIntent();
 const chatHistory = document.getElementById("coding-chat-history");
 const chatTopic = document.querySelector(".coding-chat-topbar .chat-topic");
@@ -81,6 +90,10 @@ const explorer = createCodingExplorer({
 });
 
 onMessage((msg) => {
+  if (msg.op === "chat_feedback_result") {
+    conversation.applyFeedbackResult(msg);
+    return;
+  }
   if (msg.op === "chats_changed") {
     requestChats();
     return;

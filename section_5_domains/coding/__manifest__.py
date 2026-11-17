@@ -26,7 +26,10 @@ ORGAN = {
         ),
         "write_code": (
             "Produce, implement, modify, refactor, or edit source code when "
-            "the requested outcome is actual code rather than only a plan."
+            "the requested outcome is actual code rather than only a plan. "
+            "This includes creating a new file when the user explicitly "
+            "provides its path or filename, including an empty file when "
+            "requested."
         ),
         "test_code": (
             "Test code or an implementation and report concrete test results."

@@ -25,6 +25,12 @@ class CodingRecaller:
                     limit=5,
                 )
             )
+            observations: List[Dict[str, Any]] = memory_bridge.recall(
+                query=task,
+                memory_class="derived",
+                domain="Cod",
+                limit=5,
+            )
 
             lines = []
 
@@ -36,6 +42,17 @@ class CodingRecaller:
                         f"(score={item['score']:.2f}, "
                         f"success={item['success_count']}, "
                         f"fail={item['failure_count']})\n"
+                        f"    Source memory: {item.get('id', 'unknown')}\n"
+                        f"    Evidence: {str(item.get('content', ''))[:1500]}"
+                    )
+
+            if observations:
+                lines.append(
+                    "Previously observed Coding runs (not established as successful solutions):"
+                )
+                for item in observations:
+                    lines.append(
+                        f"  {item['title']} (state={item.get('state', 'derived')})\n"
                         f"    Source memory: {item.get('id', 'unknown')}\n"
                         f"    Evidence: {str(item.get('content', ''))[:1500]}"
                     )
@@ -53,7 +70,8 @@ class CodingRecaller:
             if lines:
                 print(
                     "[coding] memory recall: "
-                    f"{len(successes)} successes, "
+                    f"{len(successes)} tested solutions, "
+                    f"{len(observations)} derived observations, "
                     f"{len(failures)} failures"
                 )
 

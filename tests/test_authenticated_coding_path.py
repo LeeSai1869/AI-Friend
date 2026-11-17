@@ -60,7 +60,7 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 })
             elif 'Answer strictly with JSON in one of these shapes' in text:
                 output = json.dumps({'kind': 'code_change', 'files': ['answer.py'], 'summary': 'Create answer() returning 42'})
-            elif 'Render a clear, concise response for the human' in text:
+            elif 'Write in the first person, speaking directly to the person who asked.' in text:
                 output = 'Created answer.py and the syntax check succeeded.'
             elif 'Audit the Chat draft against the objective' in text:
                 output = json.dumps({'approved': True, 'issues': []})
@@ -150,8 +150,9 @@ def test_authenticated_chat_mind_coding_execution(tmp_path, monkeypatch):
                 evaluated = mind._receive_memory_proposal(proposal)
                 assert evaluated['learning_evaluation']['ok'], evaluated
                 assert evaluated['learning_evaluation']['evidence']['functional_correctness_established'] is False
-                recalled = mind.memory.recall_tested(query='answer', domain='Cod', limit=5)
-                assert recalled and 'functional correctness is unverified' in recalled[0]['content']
+                assert evaluated['learning_evaluation']['memory_class'] == 'derived'
+                recalled = mind.memory.recall(query='answer', memory_class='derived', domain='Cod', limit=5)
+                assert recalled and 'not run; functional correctness is unverified' in recalled[0]['content']
     try:
         asyncio.run(exercise())
     finally:

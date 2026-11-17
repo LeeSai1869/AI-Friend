@@ -57,6 +57,17 @@ class _Failing:
         }
 
 
+class _ObservedDerived:
+    def evaluate_knowledge(self, proposal):
+        return {
+            "ok": True,
+            "testable": False,
+            "memory_class": "derived",
+            "reason": "observed run; functional correctness is not established",
+            "evidence": {"observed_run": True},
+        }
+
+
 class LearningLifecycleTests(unittest.TestCase):
     def setUp(self):
         from section_1_central_mind.mind.loop import CentralMind
@@ -121,6 +132,16 @@ class LearningLifecycleTests(unittest.TestCase):
         self.assertEqual(result["approved_class"], "tested")
         entry = self.memory.get(result["memory_id"])
         self.assertEqual(entry.memory_class, "tested")
+
+    def test_observed_run_is_promoted_only_as_derived(self):
+        mind = self.make_mind(_ObservedDerived())
+        submitted = self.propose()
+
+        result = mind.learn_memory_proposal(submitted["proposal_id"])
+
+        self.assertEqual(result["status"], "approved")
+        self.assertEqual(result["approved_class"], "derived")
+        self.assertEqual(self.memory.get(result["memory_id"]).memory_class, "derived")
 
     def test_failing_testable_knowledge_is_rejected(self):
         mind = self.make_mind(_Failing())

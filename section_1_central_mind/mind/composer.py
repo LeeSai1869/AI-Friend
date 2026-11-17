@@ -15,6 +15,8 @@ class Composer:
         questions: List[Dict[str, Any]] = []
         artifacts: List[Any] = []
         errors: List[str] = []
+        failure_outputs: List[str] = []
+        failed_responses: List[Dict[str, Any]] = []
 
         for r in responses:
             status = r.get("status", "ok")
@@ -33,11 +35,24 @@ class Composer:
 
             elif status == "error":
                 errors.append(r.get("error", "(unknown error)"))
+                failed_responses.append(r)
+                output = r.get("output")
+                if isinstance(output, str) and output.strip():
+                    failure_outputs.append(output.strip())
 
         if questions:
             return {"status": "needs_answers", "questions": questions}
         if errors:
-            return {"status": "error", "errors": errors, "outputs": outputs}
+            result = {"status": "error", "errors": errors, "outputs": outputs}
+            if failure_outputs:
+                result["output"] = "\n\n".join(failure_outputs)
+            for field in ("execution_receipt", "attempts", "functional_tests"):
+                values = [r[field] for r in failed_responses if field in r]
+                if len(values) == 1:
+                    result[field] = values[0]
+                elif values:
+                    result[f"{field}_by_response"] = values
+            return result
         if not outputs:
             return {"status": "no_handler"}
 

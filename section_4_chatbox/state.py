@@ -45,6 +45,7 @@ class Turn:
     action: str = ""         # answer | analyze | work | question
     verified: List[str] = field(default_factory=list)
     rejected: List[str] = field(default_factory=list)
+    feedback: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -263,6 +264,29 @@ class Chat:
         )
         self._save_rejected()
         self.update_summary()
+
+    def record_feedback(
+        self, turn_index: int, rating: str, comment: str = ""
+    ) -> Dict[str, Any]:
+        if type(turn_index) is not int or not 0 <= turn_index < len(self.turns):
+            raise ValueError("feedback turn index is invalid")
+        if not isinstance(rating, str) or rating not in {"helpful", "not_helpful"}:
+            raise ValueError("feedback rating must be helpful or not_helpful")
+        if not isinstance(comment, str) or len(comment) > 2000:
+            raise ValueError("feedback comment must be a string of at most 2000 characters")
+
+        turn = self.turns[turn_index]
+        if turn.role != "mind":
+            raise ValueError("feedback can only be attached to a Central Mind response")
+
+        feedback = {
+            "rating": rating,
+            "comment": comment.strip(),
+            "ts": time.time(),
+        }
+        turn.feedback = feedback
+        self._save_turns()
+        return dict(feedback)
 
     def find_rejected(self, proposal: str) -> Optional[Dict[str, Any]]:
         """Does this proposal match a previously rejected one?"""

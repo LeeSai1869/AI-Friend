@@ -13,6 +13,8 @@ export function createConversation() {
 
   let activeChatId = null;
   let activeToolStatus = null;
+  let persistedTurnCount = 0;
+  let feedbackHandler = null;
 
   function getChatId() {
     return activeChatId;
@@ -23,6 +25,7 @@ export function createConversation() {
   }
 
   function clearThread() {
+    persistedTurnCount = 0;
     if (!thread) {
       return;
     }
@@ -60,6 +63,14 @@ export function createConversation() {
     msg.appendChild(roleEl);
     msg.appendChild(body);
 
+    const transient = metadata?.transient === true;
+    const turnIndex = Number.isInteger(metadata?.turnIndex)
+      ? metadata.turnIndex
+      : persistedTurnCount;
+    if (!transient) {
+      persistedTurnCount = Math.max(persistedTurnCount, turnIndex + 1);
+    }
+
     if (role === "user" && Array.isArray(metadata?.attachmentNames) && metadata.attachmentNames.length) {
       const attachments = document.createElement("div");
       attachments.className = "msg-attachments";
@@ -79,6 +90,56 @@ export function createConversation() {
       if (footer) {
         msg.appendChild(footer);
       }
+    }
+    if (role === "mind" && activeChatId && !transient) {
+      const feedback = document.createElement("div");
+      feedback.className = "msg-feedback";
+      feedback.dataset.turnIndex = String(turnIndex);
+      feedback.dataset.chatId = activeChatId;
+      feedback.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap";
+
+      const question = document.createElement("div");
+      question.className = "msg-feedback-question";
+      question.textContent = "Was this result acceptable? If not, what went wrong or needs changing?";
+      question.style.cssText = "flex-basis:100%";
+
+      const comment = document.createElement("input");
+      comment.type = "text";
+      comment.maxLength = 2000;
+      comment.placeholder = "What should be fixed? (optional)";
+      comment.setAttribute("aria-label", "What went wrong or should be changed?");
+      comment.value = metadata?.feedback?.comment || "";
+      comment.style.cssText = "max-width:260px";
+
+      const status = document.createElement("span");
+      status.className = "msg-feedback-status";
+      status.setAttribute("aria-live", "polite");
+      if (metadata?.feedback?.rating) {
+        status.textContent = `Feedback recorded: ${metadata.feedback.rating.replace("_", " ")}`;
+      }
+
+      for (const [rating, label] of [["helpful", "Helpful"], ["not_helpful", "Not helpful"]]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.setAttribute("aria-pressed", String(metadata?.feedback?.rating === rating));
+        button.onclick = () => {
+          if (typeof feedbackHandler !== "function") return;
+          button.disabled = true;
+          status.textContent = "Saving feedback…";
+          feedbackHandler({
+            chatId: activeChatId,
+            turnIndex,
+            rating,
+            comment: comment.value,
+          });
+        };
+        feedback.appendChild(button);
+      }
+
+      feedback.prepend(question);
+      feedback.append(comment, status);
+      msg.appendChild(feedback);
     }
 
     thread.appendChild(msg);
@@ -163,19 +224,23 @@ export function createConversation() {
       ? payload.turns
       : [];
 
-    for (const turn of turns) {
+    turns.forEach((turn, turnIndex) => {
       const role =
         turn.role === "user"
           ? "user"
           : "mind";
 
-      appendMessage(role, turn.text ?? "");
-    }
+      appendMessage(role, turn.text ?? "", {
+        turnIndex,
+        feedback: turn.feedback,
+      });
+    });
 
     if (!turns.length) {
       appendMessage(
         "mind",
         "Ready. What would you like to do?",
+        { transient: true },
       );
     }
   }
@@ -187,7 +252,40 @@ export function createConversation() {
     appendMessage(
       "mind",
       "Ready. What would you like to do?",
+      { transient: true },
     );
+  }
+
+  function setFeedbackHandler(handler) {
+    feedbackHandler = typeof handler === "function" ? handler : null;
+  }
+
+  function applyFeedbackResult(result) {
+    if (!thread || result?.chat_id !== activeChatId) return;
+    const feedback = thread.querySelector(
+      `.msg-feedback[data-turn-index="${result.turn_index}"][data-chat-id="${result.chat_id}"]`,
+    );
+    if (!feedback) return;
+
+    const status = feedback.querySelector(".msg-feedback-status");
+    const buttons = feedback.querySelectorAll("button");
+    buttons.forEach(button => { button.disabled = false; });
+    if (!result.ok) {
+      if (status) status.textContent = result.error || "Could not save feedback.";
+      return;
+    }
+
+    const rating = result.feedback?.rating;
+    buttons.forEach(button => {
+      button.setAttribute(
+        "aria-pressed",
+        String((rating === "helpful" && button.textContent === "Helpful") ||
+          (rating === "not_helpful" && button.textContent === "Not helpful")),
+      );
+    });
+    if (status) {
+      status.textContent = `Feedback recorded: ${String(rating || "").replace("_", " ")}`;
+    }
   }
 
   return {
@@ -198,5 +296,7 @@ export function createConversation() {
     clearToolStatus,
     restoreChat,
     newChat,
+    setFeedbackHandler,
+    applyFeedbackResult,
   };
 }

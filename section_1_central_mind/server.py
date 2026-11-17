@@ -817,6 +817,46 @@ async def handle_client(
                         await websocket.send(json.dumps(response))
                     continue
 
+                if op == "chat_feedback":
+                    runtime = ChatRuntime(
+                        mind,
+                        project_root,
+                        owner=account["username"],
+                    )
+                    try:
+                        feedback_chat_id = data.get("chat_id")
+                        feedback_turn_index = data.get("turn_index")
+                        feedback_rating = data.get("rating")
+                        feedback_comment = data.get("comment", "")
+                        if not isinstance(feedback_chat_id, str):
+                            raise ValueError("chat_id must be a string")
+                        if type(feedback_turn_index) is not int:
+                            raise ValueError("turn_index must be an integer")
+                        if not isinstance(feedback_rating, str):
+                            raise ValueError("rating must be a string")
+                        if not isinstance(feedback_comment, str):
+                            raise ValueError("comment must be a string")
+                        feedback = runtime.record_feedback(
+                            feedback_chat_id,
+                            feedback_turn_index,
+                            feedback_rating,
+                            feedback_comment,
+                        )
+                        response = {
+                            "op": "chat_feedback_result",
+                            **feedback,
+                        }
+                    except (TypeError, ValueError) as exc:
+                        response = {
+                            "op": "chat_feedback_result",
+                            "ok": False,
+                            "chat_id": data.get("chat_id"),
+                            "turn_index": data.get("turn_index"),
+                            "error": str(exc),
+                        }
+                    await websocket.send(json.dumps(response))
+                    continue
+
                 # ---- load_chat ------------------------------------------------
                 if op == "load_chat":
                     requested_chat_id = str(
@@ -1319,6 +1359,9 @@ async def handle_client(
                             "provider": result.get("provider"),
                             "execution_model": result.get("execution_model"),
                             "memory_ids": result.get("memory_ids", []),
+                            "execution_receipt": result.get("execution_receipt"),
+                            "attempts": result.get("attempts", []),
+                            "functional_tests": result.get("functional_tests"),
                             "error": result.get("error"),
                         }))
                     else:

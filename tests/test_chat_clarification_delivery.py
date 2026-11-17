@@ -58,3 +58,22 @@ def test_reviewed_reasoning_failure_text_is_preserved_for_the_ui(tmp_path):
     assert result['status'] == 'error'
     assert result['text'] == "I couldn't verify whether the project is open."
     assert result['error'] == 'reasoning incomplete'
+
+
+def test_unresolved_reasoning_error_cannot_be_rendered_as_success(tmp_path):
+    runtime = ChatRuntime(
+        SimpleNamespace(process=lambda *args, **kwargs: {
+            'status': 'error',
+            'output': 'Created the requested file.',
+            'error': 'no validated plan',
+            'cognition': {'disposition': 'reasoning_error'},
+        }),
+        tmp_path,
+    )
+
+    result = runtime.respond('Create a file named report.txt')
+
+    assert not result['ok']
+    assert result['status'] == 'error'
+    assert 'did not run or change anything' in result['text']
+    assert 'Created the requested file' not in result['text']

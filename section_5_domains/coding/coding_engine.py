@@ -9,7 +9,8 @@ Contract:
 """
 from __future__ import annotations
 
-from pathlib import Path
+import re
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List
 
 from mind.organ import Organ
@@ -339,6 +340,112 @@ class CodingOrgan(Organ):
             ),
         }
 
+    @staticmethod
+    def _explicit_empty_file_path(task: str) -> str | None:
+        match = re.search(
+            r"\b(?:create|make|write|add)\s+(?:an?\s+)?"
+            r"(?:empty\s+)?file\s+(?:named|called)\s+"
+            r"(?:[\"'`“‘](?P<quoted>[^\"'`”’]+)[\"'`”’]|"
+            r"(?P<plain>[^\s,;]+))",
+            task,
+            flags=re.IGNORECASE,
+        )
+        if match is None:
+            return None
+
+        filename = (match.group("quoted") or match.group("plain") or "").strip()
+        if match.group("plain"):
+            filename = filename.rstrip(".!?")
+
+        trailing_request = task[match.end():]
+        has_content_request = re.search(
+            r"\b(?:with|containing|contains|including|whose)\b|:",
+            trailing_request,
+            flags=re.IGNORECASE,
+        )
+        empty_suffix = re.fullmatch(
+            r"\s*(?:and\s+)?(?:with\s+)?"
+            r"(?:empty|blank|no\s+content|nothing(?:\s+(?:written|in\s+it))?|"
+            r"nothing\s+(?:is\s+)?(?:required\s+)?to\s+be\s+written)"
+            r"[.!?]*\s*",
+            trailing_request,
+            flags=re.IGNORECASE,
+        )
+        if has_content_request and not empty_suffix:
+            return None
+
+        if (
+            not filename
+            or "\x00" in filename
+            or "\\" in filename
+            or filename.startswith("/")
+            or any(part in {"", ".", ".."} for part in filename.split("/"))
+        ):
+            return None
+
+        path = PurePosixPath(filename)
+        if not path.parts or path.is_absolute() or path.parts[0].endswith(":"):
+            return None
+        return path.as_posix()
+
+    def _create_explicit_empty_file(
+        self,
+        *,
+        task: str,
+        broker,
+    ) -> Dict[str, Any] | None:
+        path = self._explicit_empty_file_path(task)
+        if path is None:
+            return None
+        if not self.project_context.is_open:
+            return resource_question(
+                "open a Coding Project before creating a file"
+            )
+
+        existing = broker.call("read_file", {"path": path})
+        if existing.get("ok") is True:
+            return {
+                "status": "ok",
+                "operation": "no_change",
+                "output": f"No files were written; {path} already exists.",
+                "artifacts": [],
+            }
+        if not str(existing.get("error") or "").startswith("not found:"):
+            return {
+                "status": "error",
+                "error": existing.get("error") or f"could not check {path}",
+                "output": f"No files were changed; could not check {path}.",
+                "artifacts": [],
+            }
+
+        written = broker.call(
+            "write_file",
+            {"path": path, "content": ""},
+        )
+        if written.get("ok") is not True:
+            error = written.get("error") or "file creation failed"
+            return {
+                "status": "error",
+                "error": error,
+                "output": f"No file was created: {error}",
+                "artifacts": [],
+            }
+
+        return {
+            "status": "ok",
+            "operation": "code_change",
+            "output": f"Created empty file: {path}",
+            "artifacts": [path],
+            "verification": {
+                "ok": True,
+                "reason": "guarded file creation succeeded; no code checks apply",
+                "checks": {
+                    "file_writes": True,
+                    "python_syntax": "not_applicable",
+                },
+            },
+        }
+
     def handle(self, request: Dict[str, Any]) -> Dict[str, Any]:
         domain = self._for_caller(request.get("caller"))
         if domain is not self:
@@ -361,13 +468,21 @@ class CodingOrgan(Organ):
         if broker is None or caller is None:
             return {"status": "error", "error": "coding domain requires broker and caller"}
 
+        capability = selected_capability(request.get("cognitive_plan"))
+        if capability in {"", "write_code"}:
+            direct_file_result = self._create_explicit_empty_file(
+                task=task,
+                broker=broker,
+            )
+            if direct_file_result is not None:
+                return direct_file_result
+
         # Recall Coding experience through the supplied Memory bridge.
         recalled_block = self.recaller.recall(
             task=task,
             memory_bridge=request.get("memory"),
         )
 
-        capability = selected_capability(request.get("cognitive_plan"))
         if capability in {"plan_code", "test_code", "verify_code"}:
             if not self.project_context.is_open:
                 return resource_question("open a Coding Project before planning or running tests")
@@ -554,6 +669,51 @@ class CodingOrgan(Organ):
             allowed_files=allowed_files, tests=tests,
             sources=inventory)
         if execution.get("status") != "executed":
+            if execution.get("status") == "error" and execution.get("output"):
+                execution["error"] = (
+                    f"{execution.get('error', 'Coding execution failed')}\n"
+                    f"{execution['output']}"
+                )
+            receipt = execution.get("execution_receipt") or {}
+            functional_result = execution.get("functional_tests")
+            functional_data = (
+                functional_result.get("data")
+                if isinstance(functional_result, dict) else None
+            )
+            tests_ran = (
+                functional_data.get("tests_run")
+                if isinstance(functional_data, dict) else None
+            )
+            if (
+                execution.get("status") == "error"
+                and receipt.get("candidate_applied") is False
+                and type(tests_ran) is int
+                and tests_ran > 0
+            ):
+                failures = Tester.failure_details(functional_result)
+                candidate = {
+                    "domain": "Cod", "kind": "observation",
+                    "title": summary or task[:80],
+                    "content": (
+                        f"Task: {task}\nCandidate files: {', '.join(allowed_files)}\n"
+                        "Candidate was not applied because behavioral tests failed. "
+                        f"Failing tests: {failures}"
+                    ),
+                    "tags": ["coding", "rejected_approach", "functional_tests"],
+                    "source_refs": list(dict.fromkeys([*allowed_files, *tests])),
+                    "execution_receipt": dict(receipt),
+                    "source": dict(getattr(caller, "last_source", None) or {}),
+                    "derivation_note": (
+                        "Observed Coding candidate rejected before application; "
+                        "retain as derived evidence, not a successful solution."
+                    ),
+                }
+                self.experience.remember(
+                    candidate,
+                    {"ok": False, "reason": execution.get("error", "candidate rejected")},
+                    functional_result,
+                )
+                execution["learning_candidate"] = candidate
             return execution
         writes, attempts = execution["writes"], execution["attempts"]
         applied, test_result = execution["applied"], execution["syntax"]
