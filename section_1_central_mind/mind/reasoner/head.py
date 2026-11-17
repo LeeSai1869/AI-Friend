@@ -320,6 +320,43 @@ class Reasoner:
             proposal.get("rationale")
         )
 
+    def _evidence_pairs(self):
+        """Component and capability pairs that are declared as evidence, not execution."""
+        return {
+            (str(row.get("component") or ""), str(row.get("capability") or ""))
+            for row in self._semantic_catalog()
+            if row.get("purpose") == "evidence"
+        }
+
+    def _repair_feedback(self, drops):
+        """Explain each rejected step and name what a valid plan looks like."""
+        evidence = self._evidence_pairs()
+        lines = []
+        for d in drops:
+            pair = (d["component"], d["capability"])
+            label = "step %s (%s / %s)" % (d["step_id"], d["component"] or "-", d["capability"] or "-")
+            if pair in evidence:
+                lines.append(
+                    label + ": %s of %s is an evidence capability. Propose it under consultations, "
+                    "not as a step, and answer with a step of kind communicate." % (pair[1], pair[0])
+                )
+            elif not d["component"] and not d["capability"]:
+                lines.append(
+                    label + ": a domain step needs a component and a capability from the catalog. "
+                    "To ask the user something, use clarification_candidates. If no domain applies, "
+                    "use a step of kind communicate with null component and capability."
+                )
+            else:
+                lines.append(label + ": " + str(d["reason"]))
+        executable = sorted(
+            "%s / %s" % (row.get("component"), row.get("capability"))
+            for row in self._semantic_catalog()
+            if row.get("purpose") == "execution"
+        )
+        if executable:
+            lines.append("Valid executable steps are: " + "; ".join(executable) + ".")
+        return lines
+
     def _note_drop(self, step_id, component, capability, reason) -> None:
         """Remember why a proposed step was not accepted, for diagnosis and re-planning."""
         rows = getattr(self, "last_dropped_steps", None)
@@ -1018,12 +1055,7 @@ class Reasoner:
                 # understanding resource why and ask once more before treating
                 # the request as plain communication.
                 replanned = True
-                feedback = [
-                    "step %s (%s / %s): %s" % (
-                        d["step_id"], d["component"] or "-", d["capability"] or "-", d["reason"],
-                    )
-                    for d in new_drops
-                ]
+                feedback = self._repair_feedback(new_drops)
                 retry = self._semantic_proposal(
                     state,
                     prior={**proposal, "validation_feedback": feedback},
@@ -1043,6 +1075,44 @@ class Reasoner:
                         break
 
             if new_drops:
+                # If every rejected step was a declared evidence capability, the
+                # planner only mislabeled information gathering. Run the
+                # consultations and answer; never turn anything into an action.
+                evidence_pairs = self._evidence_pairs()
+                latest = list(getattr(self, "last_dropped_steps", None) or [])
+                if latest and all((d["component"], d["capability"]) in evidence_pairs for d in latest):
+                    seen = set()
+                    consultations = []
+                    for d in latest:
+                        pair = (d["component"], d["capability"])
+                        if pair in seen:
+                            continue
+                        seen.add(pair)
+                        consultations.append({
+                            "component": pair[0],
+                            "capability": pair[1],
+                            "subject": pair[1],
+                            "question": "Provide your evidence for this request: " + state.objective[:1000],
+                            "rationale": ["the planner proposed this evidence capability as a step"],
+                        })
+                    self._investigate(state, {"consultations": consultations})
+                    state.candidate_steps = [{
+                        "step_id": "step_1",
+                        "objective": state.objective,
+                        "kind": "communicate",
+                        "component": None,
+                        "capability": None,
+                        "depends_on": [],
+                        "requirements": [],
+                        "constraints": [],
+                        "expected_outcome": "communicate the answer to the human",
+                        "confidence": state.understanding_confidence,
+                        "rationale": ["the planner mislabeled evidence gathering as an action; answered from the gathered evidence"],
+                    }]
+                    state.missing_information = []
+                    state.clarification_questions = []
+                    state.should_clarify = False
+                    break
                 state.reasoning_error = "The plan contains invalid action steps after one repair attempt; no action was executed."
                 state.candidate_steps = []
                 break
