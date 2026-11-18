@@ -23,6 +23,7 @@ ORGAN = {
                 "the user about the app. It describes the app; it does not report live state such as which project is open."
             ),
             "read_only": True,
+            "ambient": True,
         },
     },
     "keywords": [],
