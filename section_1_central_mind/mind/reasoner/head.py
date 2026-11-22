@@ -250,7 +250,7 @@ class Reasoner:
 
     FORMAT_LEAK = (
         r"\bjson\b|\bkeys?\b|\bschema\b|objective_summary|output format|"
-        r"repeat the input|specified keys|requested keys"
+        r"repeat (the )?(input|previous)|specified keys|requested keys|required fields|omission|additional content|additional keys|previous response"
     )
 
     def _drop_format_leaks(self, items, user_text):
