@@ -248,6 +248,19 @@ class Reasoner:
             if str(item).strip()
         ]
 
+    FORMAT_LEAK = (
+        r"\bjson\b|\bkeys?\b|\bschema\b|objective_summary|output format|"
+        r"repeat the input|specified keys|requested keys"
+    )
+
+    def _drop_format_leaks(self, items, user_text):
+        """Remove planner output-format rules that were written down as the user's requirements."""
+        import re
+        pattern = re.compile(self.FORMAT_LEAK, re.I)
+        if pattern.search(str(user_text or "")):
+            return list(items or [])
+        return [item for item in (items or []) if not pattern.search(str(item))]
+
     def _assimilate_proposal(
         self,
         state: ReasoningState,
@@ -258,13 +271,13 @@ class Reasoner:
             or state.objective
         ).strip()
 
-        state.requirements = self._strings(
-            proposal.get("requirements")
+        state.requirements = self._drop_format_leaks(
+            self._strings(proposal.get("requirements")), state.objective
         )
         checks = proposal.get("acceptance_checks", [])
         state.acceptance_checks = list(checks) if isinstance(checks, list) else []
-        state.constraints = self._strings(
-            proposal.get("constraints")
+        state.constraints = self._drop_format_leaks(
+            self._strings(proposal.get("constraints")), state.objective
         )
         state.ambiguities = self._strings(
             proposal.get("ambiguities")
@@ -287,6 +300,11 @@ class Reasoner:
             for item in proposal.get("candidate_steps", []) or []
             if isinstance(item, dict)
         ]
+
+        for step in state.candidate_steps:
+            for field in ("requirements", "constraints"):
+                if isinstance(step.get(field), list):
+                    step[field] = self._drop_format_leaks(step[field], state.objective)
 
         state.clarification_questions = [
             dict(item)
