@@ -1,0 +1,542 @@
+{
+  "'arf": [
+    {
+      "word": "'arf",
+      "phonetics": [],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "(representing nonstandard or dialect pronunciation, especially Cockney) Half.",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/'arf"
+      ]
+    }
+  ],
+  "'cause": [
+    {
+      "word": "'cause",
+      "phonetic": "/kɔz/",
+      "phonetics": [
+        {
+          "text": "/kɔz/",
+          "audio": ""
+        },
+        {
+          "text": "/kɔz/",
+          "audio": ""
+        },
+        {
+          "text": "/kɒz/",
+          "audio": ""
+        },
+        {
+          "text": "/kʌz/",
+          "audio": "https://api.dictionaryapi.dev/media/pronunciations/en/'cause-us.mp3",
+          "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=19231475",
+          "license": {
+            "name": "BY-SA 3.0",
+            "url": "https://creativecommons.org/licenses/by-sa/3.0"
+          }
+        }
+      ],
+      "meanings": [
+        {
+          "partOfSpeech": "conjunction",
+          "definitions": [
+            {
+              "definition": "By or for the cause that; on this account that; for the reason that.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "I hid myself because I was afraid."
+            },
+            {
+              "definition": "As is known, inferred, or determined from the fact that.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "I don't think he is a nice person, because he yells at people for no reason."
+            },
+            {
+              "definition": "So that, in order that.",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [
+            "as",
+            "for",
+            "for sake",
+            "for that",
+            "forthy",
+            "forwhy",
+            "inasmuch as",
+            "since",
+            "sith",
+            "therefore",
+            "∵"
+          ],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/'cause",
+        "https://en.wiktionary.org/wiki/because"
+      ]
+    }
+  ],
+  "flatbread": [
+    {
+      "word": "flatbread",
+      "phonetics": [],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "Crispbread",
+              "synonyms": [],
+              "antonyms": []
+            },
+            {
+              "definition": "Any of various kinds of unleavened bread",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/flatbread"
+      ]
+    }
+  ],
+  "flatbreads": [
+    {
+      "word": "flatbreads",
+      "phonetics": [],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "Crispbread",
+              "synonyms": [],
+              "antonyms": []
+            },
+            {
+              "definition": "Any of various kinds of unleavened bread",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/flatbread",
+        "https://en.wiktionary.org/wiki/flatbreads"
+      ]
+    }
+  ],
+  "water features": [
+    {
+      "word": "water features",
+      "phonetics": [],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "An architectural design element involving water, such as a fountain, a pond or a waterfall.",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/water%20feature",
+        "https://en.wiktionary.org/wiki/water%20features"
+      ]
+    }
+  ],
+  "übermensch": [
+    {
+      "word": "übermensch",
+      "phonetic": "/ˈuːbərmɛnʃ/",
+      "phonetics": [
+        {
+          "text": "/ˈuːbərmɛnʃ/",
+          "audio": ""
+        }
+      ],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "An overman (“higher” man) who has overcome (transcended) his (mere) humanity. (There is no consensus regarding the exact nature of the figure of the übermensch in Nietzsche’s philosophy.)",
+              "synonyms": [],
+              "antonyms": []
+            },
+            {
+              "definition": "(Nazism and white supremacist ideology) A member of the proposed Aryan super race.",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [
+            "overman",
+            "superman"
+          ],
+          "antonyms": [
+            "Untermensch",
+            "Untermensch"
+          ]
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/%C3%BCbermensch"
+      ]
+    }
+  ],
+  "'hood": [
+    {
+      "word": "'hood",
+      "phonetics": [],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "Brotherhood",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/'hood"
+      ]
+    },
+    {
+      "word": "'hood",
+      "phonetics": [],
+      "meanings": [
+        {
+          "partOfSpeech": "noun",
+          "definitions": [
+            {
+              "definition": "Neighborhood.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "What’s goin’ down in the hood?"
+            }
+          ],
+          "synonyms": [
+            "nabe",
+            "neighborhood",
+            "ghetto"
+          ],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/'hood",
+        "https://en.wiktionary.org/wiki/hood"
+      ]
+    }
+  ],
+  "abash": [
+    {
+      "word": "abash",
+      "phonetic": "/əˈbæʃ/",
+      "phonetics": [
+        {
+          "text": "/əˈbæʃ/",
+          "audio": ""
+        },
+        {
+          "text": "/əˈbæʃ/",
+          "audio": "https://api.dictionaryapi.dev/media/pronunciations/en/abash-us.mp3",
+          "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=1755010",
+          "license": {
+            "name": "BY-SA 3.0",
+            "url": "https://creativecommons.org/licenses/by-sa/3.0"
+          }
+        }
+      ],
+      "meanings": [
+        {
+          "partOfSpeech": "verb",
+          "definitions": [
+            {
+              "definition": "To make ashamed; to embarrass; to destroy the self-possession of, as by exciting suddenly a consciousness of guilt, mistake, or inferiority; to disconcert; to discomfit.",
+              "synonyms": [
+                "bewilder",
+                "confound",
+                "confuse",
+                "daunt",
+                "discompose",
+                "disconcert",
+                "discountenance",
+                "dishearten",
+                "embarrass",
+                "faze",
+                "fluster",
+                "humble",
+                "humiliate",
+                "mortify",
+                "rattle",
+                "shake",
+                "shame",
+                "snub"
+              ],
+              "antonyms": [
+                "abet",
+                "animate",
+                "buoy",
+                "cheer",
+                "countenance",
+                "embolden",
+                "encourage",
+                "incite",
+                "inspirit",
+                "rally",
+                "reassure",
+                "uphold"
+              ]
+            },
+            {
+              "definition": "To lose self-possession; to become ashamed.",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [
+            "bewilder",
+            "confound",
+            "confuse",
+            "daunt",
+            "discompose",
+            "disconcert",
+            "discountenance",
+            "dishearten",
+            "embarrass",
+            "faze",
+            "fluster",
+            "humble",
+            "humiliate",
+            "mortify",
+            "rattle",
+            "shake",
+            "shame",
+            "snub"
+          ],
+          "antonyms": [
+            "abet",
+            "animate",
+            "buoy",
+            "cheer",
+            "countenance",
+            "embolden",
+            "encourage",
+            "incite",
+            "inspirit",
+            "rally",
+            "reassure",
+            "uphold"
+          ]
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/abash"
+      ]
+    }
+  ],
+  "'s": [
+    {
+      "word": "'s",
+      "phonetic": "/əz/",
+      "phonetics": [
+        {
+          "text": "/əz/",
+          "audio": ""
+        },
+        {
+          "text": "/ɪz/",
+          "audio": ""
+        },
+        {
+          "text": "/əz/",
+          "audio": ""
+        }
+      ],
+      "meanings": [
+        {
+          "partOfSpeech": "adverb",
+          "definitions": [
+            {
+              "definition": "To such an extent or degree; to the same extent or degree.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "It's not as well made, but it's twice as expensive."
+            },
+            {
+              "definition": "Considered to be, in relation to something else; in the relation (specified).",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "1865, The Act of Suicide as Distinct from the Crime of Self-Murder: A Sermon"
+            },
+            {
+              "definition": "For example; for instance. (Compare such as.)",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        },
+        {
+          "partOfSpeech": "conjunction",
+          "definitions": [
+            {
+              "definition": "In the (same) way or manner that; to the (same) degree that.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "As you wish, my lord!"
+            },
+            {
+              "definition": "At the time that; during the time when:",
+              "synonyms": [],
+              "antonyms": []
+            },
+            {
+              "definition": "Being that, considering that, because, since.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "As it’s too late, I quit."
+            },
+            {
+              "definition": "Introducing a comparison with a hypothetical state (+ subjunctive, or with the verb elided): as though, as if.",
+              "synonyms": [],
+              "antonyms": []
+            },
+            {
+              "definition": "Functioning as a relative conjunction, and sometimes like a relative pronoun: that, which, who. (See usage notes.)",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "He had the same problem as she did getting the lock open."
+            },
+            {
+              "definition": "(possibly obsolete) Than.",
+              "synonyms": [],
+              "antonyms": []
+            }
+          ],
+          "synonyms": [
+            "while",
+            "whilst",
+            "given that",
+            "seeing that",
+            "albeit",
+            "although"
+          ],
+          "antonyms": []
+        },
+        {
+          "partOfSpeech": "pronoun",
+          "definitions": [
+            {
+              "definition": "(personal) Me and at least one other person; the objective case of we.",
+              "synonyms": [],
+              "antonyms": []
+            },
+            {
+              "definition": "(chiefly with give) Me.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "Give us a look at your paper."
+            },
+            {
+              "definition": "Our.",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "We'll have to throw us food out."
+            },
+            {
+              "definition": "Me (in all contexts).",
+              "synonyms": [],
+              "antonyms": [],
+              "example": "Could you do that for us?"
+            }
+          ],
+          "synonyms": [],
+          "antonyms": []
+        }
+      ],
+      "license": {
+        "name": "CC BY-SA 3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0"
+      },
+      "sourceUrls": [
+        "https://en.wiktionary.org/wiki/'s",
+        "https://en.wiktionary.org/wiki/as",
+        "https://en.wiktionary.org/wiki/us"
+      ]
+    }
+  ]
+}
