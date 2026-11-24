@@ -261,6 +261,55 @@ class Reasoner:
             return list(items or [])
         return [item for item in (items or []) if not pattern.search(str(item))]
 
+    def _convert_execution_consultations(self, state, proposal):
+        """A consultation that names an execution capability is a mislabeled step."""
+        consultations = proposal.get("consultations")
+        if not isinstance(consultations, list) or not consultations:
+            return
+        evidence = self._evidence_pairs()
+        execution = {
+            (str(row.get("component") or ""), str(row.get("capability") or ""))
+            for row in self._semantic_catalog()
+            if row.get("purpose") == "execution"
+        }
+        have = {
+            (str(s.get("component") or ""), str(s.get("capability") or ""))
+            for s in state.candidate_steps
+        }
+        kept, converted = [], 0
+        for item in consultations:
+            pair = (
+                str(item.get("component") or "").strip(),
+                str(item.get("capability") or "").strip(),
+            ) if isinstance(item, dict) else ("", "")
+            if pair in execution and pair not in evidence:
+                if pair not in have:
+                    state.candidate_steps.append({
+                        "step_id": "step_%d" % (len(state.candidate_steps) + 1),
+                        "objective": str(item.get("question") or state.objective).strip() or state.objective,
+                        "kind": "domain",
+                        "component": pair[0],
+                        "capability": pair[1],
+                        "depends_on": [],
+                        "requirements": [],
+                        "constraints": [],
+                        "expected_outcome": "supply the information the request needs",
+                        "confidence": state.understanding_confidence,
+                        "rationale": ["the planner named an execution capability as a consultation; run it as a step"],
+                    })
+                    have.add(pair)
+                converted += 1
+            else:
+                kept.append(item)
+        if converted:
+            proposal["consultations"] = kept
+            needs = proposal.get("information_needs")
+            if isinstance(needs, list):
+                for need in needs:
+                    if isinstance(need, dict):
+                        need["material"] = False
+            state.missing_information = []
+
     def _assimilate_proposal(
         self,
         state: ReasoningState,
@@ -300,6 +349,7 @@ class Reasoner:
             for item in proposal.get("candidate_steps", []) or []
             if isinstance(item, dict)
         ]
+        self._convert_execution_consultations(state, proposal)
 
         for step in state.candidate_steps:
             for field in ("requirements", "constraints"):
