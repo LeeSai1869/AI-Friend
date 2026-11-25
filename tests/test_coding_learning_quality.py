@@ -2,8 +2,9 @@ import json
 from section_5_domains.coding.learning import verified_example
 
 
-def passed():
-    return {'ok':True,'data':{'returncode':0,'tests_run':2,'passed':2,'failures':0,'errors':0}}
+def passed(module='test_build_index'):
+    output=''.join(f'test_{n} ({module}.Case.test_{n}) ... ok\n' for n in ('a','b'))
+    return {'ok':True,'data':{'returncode':0,'tests_run':2,'passed':2,'failures':0,'errors':0,'output':output}}
 
 
 def test_syntax_only_and_failed_runs_do_not_propose_permanent_knowledge():
@@ -42,3 +43,16 @@ def test_approved_repeat_example_keeps_one_immutable_record(tmp_path):
     assert second['memory_id']==first['memory_id'] and second['reused_existing']
     assert len(list(memory.store.iter_entries()))==1
     assert memory.store._find_path(first['memory_id']).read_bytes()==original
+
+
+def test_empty_writes_and_unrelated_tests_do_not_propose_permanent_knowledge():
+    contract={'requirements':['r']}
+    empty=verified_example(task='Create a.py',task_contract=contract,writes=[{'path':'a.py','content':'  \n'}],
+        assessment={'ok':True},functional_result=passed('test_a'))
+    assert empty is None
+    unrelated=verified_example(task='Create build_index.py',task_contract=contract,
+        writes=[{'path':'build_index.py','content':'x=1\n'}],assessment={'ok':True},functional_result=passed('test_add_values'))
+    assert unrelated is None
+    covered=verified_example(task='Create a.py',task_contract=contract,writes=[{'path':'a.py','content':'x=1\n'}],
+        assessment={'ok':True},functional_result=passed('test_a'))
+    assert covered is not None

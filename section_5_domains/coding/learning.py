@@ -2,10 +2,34 @@
 import hashlib
 import json
 from .tester import Tester
+import re
+from pathlib import PurePosixPath
+
+
+def _tested_modules(functional_result):
+    """Module names of the tests that actually ran, read from unittest output."""
+    output = str(((functional_result or {}).get('data') or {}).get('output') or '')
+    return {match.split('.')[0] for match in re.findall(r'\(([\w.]+)\)', output)}
+
+
+def _covered_by_tests(writes, functional_result):
+    """True when a test that ran belongs to a file this run wrote."""
+    modules = _tested_modules(functional_result)
+    if not modules:
+        return False
+    for row in writes or []:
+        stem = PurePosixPath(str(row.get('path') or '')).stem
+        if stem in modules or ('test_' + stem) in modules:
+            return True
+    return False
 
 
 def verified_example(*, task, task_contract, writes, assessment, functional_result):
     if assessment.get('ok') is not True or not functional_result or not Tester.passed(functional_result):
+        return None
+    if not writes or any(not str(row.get('content') or '').strip() for row in writes):
+        return None
+    if not _covered_by_tests(writes, functional_result):
         return None
     document = {
         'schema_version': 1, 'domain':'Cod', 'kind':'verified_coding_example',
