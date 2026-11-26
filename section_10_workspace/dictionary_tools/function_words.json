@@ -1,0 +1,1060 @@
+{
+ "note": "Draft closed-class table for review. Grammatical facts only; no definitions.",
+ "entries": [
+  {
+   "word": "be",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "am",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "is",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "are",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "was",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "were",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "been",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "being",
+   "class": "verb",
+   "group": "be"
+  },
+  {
+   "word": "have",
+   "class": "verb",
+   "group": "have"
+  },
+  {
+   "word": "has",
+   "class": "verb",
+   "group": "have"
+  },
+  {
+   "word": "had",
+   "class": "verb",
+   "group": "have"
+  },
+  {
+   "word": "having",
+   "class": "verb",
+   "group": "have"
+  },
+  {
+   "word": "do",
+   "class": "verb",
+   "group": "do"
+  },
+  {
+   "word": "does",
+   "class": "verb",
+   "group": "do"
+  },
+  {
+   "word": "did",
+   "class": "verb",
+   "group": "do"
+  },
+  {
+   "word": "done",
+   "class": "verb",
+   "group": "do"
+  },
+  {
+   "word": "doing",
+   "class": "verb",
+   "group": "do"
+  },
+  {
+   "word": "can",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "could",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "will",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "would",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "shall",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "should",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "may",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "might",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "must",
+   "class": "verb",
+   "group": "modal"
+  },
+  {
+   "word": "i",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "me",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "my",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "mine",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "myself",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "you",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "your",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "yours",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "yourself",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "he",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "him",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "his",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "himself",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "she",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "her",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "hers",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "herself",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "it",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "its",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "itself",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "we",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "us",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "our",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "ours",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "ourselves",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "they",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "them",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "their",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "theirs",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "themselves",
+   "class": "pronoun",
+   "group": "pronoun"
+  },
+  {
+   "word": "the",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "a",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "an",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "this",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "that",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "these",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "those",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "some",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "any",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "no",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "every",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "each",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "all",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "both",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "either",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "neither",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "many",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "much",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "few",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "several",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "other",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "another",
+   "class": "determiner",
+   "group": "determiner"
+  },
+  {
+   "word": "of",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "in",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "on",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "at",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "by",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "for",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "with",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "from",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "to",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "into",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "onto",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "over",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "under",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "about",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "after",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "before",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "between",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "through",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "during",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "without",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "within",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "against",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "among",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "around",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "above",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "below",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "up",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "down",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "out",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "off",
+   "class": "preposition",
+   "group": "preposition"
+  },
+  {
+   "word": "and",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "or",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "but",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "nor",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "so",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "yet",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "if",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "because",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "although",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "while",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "since",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "unless",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "than",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "whether",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "as",
+   "class": "conjunction",
+   "group": "conjunction"
+  },
+  {
+   "word": "not",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "very",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "too",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "also",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "just",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "only",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "then",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "there",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "here",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "when",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "where",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "why",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "how",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "what",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "which",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "who",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "whom",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "whose",
+   "class": "adverb",
+   "group": "adverb_or_wh"
+  },
+  {
+   "word": "monday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "tuesday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "wednesday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "thursday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "friday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "saturday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "sunday",
+   "class": "noun",
+   "group": "day"
+  },
+  {
+   "word": "january",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "february",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "march",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "april",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "may",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "june",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "july",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "august",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "september",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "october",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "november",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "december",
+   "class": "noun",
+   "group": "month"
+  },
+  {
+   "word": "zero",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "one",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "two",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "three",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "four",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "five",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "six",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "seven",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "eight",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "nine",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "ten",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "eleven",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "twelve",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "thirteen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "fourteen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "fifteen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "sixteen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "seventeen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "eighteen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "nineteen",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "twenty",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "thirty",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "forty",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "fifty",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "sixty",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "seventy",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "eighty",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "ninety",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "hundred",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "thousand",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "million",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "first",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "second",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "third",
+   "class": "numeral",
+   "group": "number"
+  },
+  {
+   "word": "yes",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "no",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "okay",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "ok",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "please",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "thanks",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "thank",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "sorry",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "hello",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "goodbye",
+   "class": "interjection",
+   "group": "answer"
+  },
+  {
+   "word": "n't",
+   "class": "clitic",
+   "group": "clitic"
+  },
+  {
+   "word": "'s",
+   "class": "clitic",
+   "group": "clitic"
+  },
+  {
+   "word": "'re",
+   "class": "clitic",
+   "group": "clitic"
+  },
+  {
+   "word": "'ve",
+   "class": "clitic",
+   "group": "clitic"
+  },
+  {
+   "word": "'ll",
+   "class": "clitic",
+   "group": "clitic"
+  },
+  {
+   "word": "'d",
+   "class": "clitic",
+   "group": "clitic"
+  },
+  {
+   "word": "'m",
+   "class": "clitic",
+   "group": "clitic"
+  }
+ ]
+}
