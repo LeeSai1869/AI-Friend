@@ -93,6 +93,38 @@ class ServerAuthenticationSecurityTests(unittest.TestCase):
         self.assertTrue(matches, sent)
         self.assertFalse(matches[-1]["ok"])
 
+    def test_delete_chat_requires_authentication_and_targets_one_saved_chat(self):
+        workspace = Path(self.temp.name) / "workspace"
+        store = server.ChatRuntime(None, workspace).store
+        target = store.create()
+        target.save()
+        survivor = store.create()
+        survivor.save()
+        alias = store.root / "alias"
+        alias.symlink_to(survivor.root, target_is_directory=True)
+
+        delete = {"op": "delete_chat", "chat_id": target.chat_id}
+        ws = FakeWebSocket([
+            delete,
+            {"op": "login", "username": ADMIN_USER, "password": ADMIN_PASSWORD},
+            {"op": "delete_chat", "chat_id": f"../chats/{survivor.chat_id}"},
+            {"op": "delete_chat", "chat_id": alias.name},
+            delete,
+            delete,
+            {"op": "list_chats"},
+        ])
+        with patch.object(server, "CentralMind", SafeFakeMind):
+            asyncio.run(server.handle_client(ws, workspace, auth_service=self.auth))
+
+        self.assertEqual(ws.sent[0]["op"], "auth_required")
+        results = self.messages_with_op(ws.sent, "chat_deleted")
+        self.assertEqual([result["ok"] for result in results], [False, False, True, False])
+        self.assertFalse(target.root.exists())
+        self.assertTrue(survivor.chat_file.is_file())
+        self.assertTrue(alias.is_symlink())
+        rows = self.messages_with_op(ws.sent, "chats_result")[0]["chats"]
+        self.assertNotIn(target.chat_id, {row["chat_id"] for row in rows})
+
     def test_no_central_mind_before_authentication(self):
         sent = self.run_client([
             {"op": "inventory"},

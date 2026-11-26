@@ -667,6 +667,21 @@ async def handle_client(
                 }))
                 continue
 
+            if op == "delete_chat":
+                chat_id = data.get("chat_id")
+                response = {"op": "chat_deleted", "chat_id": chat_id, "ok": False}
+                try:
+                    if ChatRuntime(mind, project_root).delete_chat(chat_id):
+                        response["ok"] = True
+                    else:
+                        response["error"] = "Chat not found"
+                except ValueError:
+                    response["error"] = "Invalid chat ID"
+                except OSError:
+                    response["error"] = "Could not delete the saved chat"
+                await websocket.send(json.dumps(response))
+                continue
+
             # ---- intake_propose -------------------------------------------
             if op == "intake_propose":
                 path = (data.get("path") or "").strip()

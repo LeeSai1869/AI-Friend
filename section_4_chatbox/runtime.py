@@ -122,6 +122,9 @@ class ChatRuntime:
         )
         return rows
 
+    def delete_chat(self, chat_id: str) -> bool:
+        return self.store.delete(chat_id)
+
     def load_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
         """Return one durable Chat State in application-facing form."""
         requested = str(chat_id or "").strip()

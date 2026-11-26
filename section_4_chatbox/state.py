@@ -23,6 +23,7 @@ drift back into a solution that already failed.
 from __future__ import annotations
 
 import json
+import shutil
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
@@ -488,6 +489,23 @@ class ChatStore:
             root=path,
             chat_id=chat_id,
         )
+
+    def delete(self, chat_id: str) -> bool:
+        """Remove one saved chat from this store."""
+        if (
+            not isinstance(chat_id, str)
+            or chat_id in {"", ".", ".."}
+            or any(separator in chat_id for separator in ("/", "\\", "\0"))
+        ):
+            raise ValueError("Invalid chat ID")
+
+        path = self.root / chat_id
+        metadata = path / "chat.json"
+        if path.is_symlink() or metadata.is_symlink() or not metadata.is_file():
+            return False
+
+        shutil.rmtree(path)
+        return True
 
     def list_ids(self) -> List[str]:
         return sorted(

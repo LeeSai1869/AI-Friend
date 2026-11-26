@@ -1,0 +1,45 @@
+.chat-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px;
+}
+
+.chat-list-row .sidebar-chat {
+  min-width: 0;
+  display: block;
+  text-align: left;
+}
+
+.chat-list-row .sidebar-chat-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-list-actions > summary,
+.chat-list-actions > button {
+  padding: 6px 8px;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chat-list-actions > summary {
+  list-style: none;
+  text-align: center;
+}
+
+.chat-list-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-list-actions > button {
+  display: block;
+  margin-top: 4px;
+}
+
+.chat-list-actions:not([open]) > button {
+  display: none;
+}

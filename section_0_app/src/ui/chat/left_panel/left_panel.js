@@ -1,6 +1,7 @@
 import {
   sendRaw,
   onMessage,
+  onAuthStateChange,
 } from "../../shared/auth_session/session.js";
 
 const DOMAIN_ICONS = {
@@ -18,6 +19,8 @@ export function createChatLeftPanel({
   topBar,
   onOpenIntake,
 }) {
+  const pendingDeletes = new Set();
+
   function requestInventory() {
     sendRaw({ op: "inventory" });
   }
@@ -131,13 +134,63 @@ export function createChatLeftPanel({
         });
       });
 
-      list.appendChild(item);
+      const row = document.createElement("div");
+      row.className = "chat-list-row";
+
+      const actions = document.createElement("details");
+      actions.className = "chat-list-actions";
+
+      const toggle = document.createElement("summary");
+      toggle.textContent = "⋯";
+      toggle.setAttribute("aria-label", `Actions for ${title.textContent}`);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "Delete chat";
+      remove.disabled = pendingDeletes.has(chat.chat_id);
+      remove.addEventListener("click", () => {
+        actions.open = false;
+        toggle.focus();
+        if (!window.confirm(`Permanently delete “${title.textContent}”?`)) {
+          return;
+        }
+        if (!sendRaw({ op: "delete_chat", chat_id: chat.chat_id }, { queue: false })) {
+          window.alert("Could not send the delete request. Reconnect and try again.");
+          return;
+        }
+        pendingDeletes.add(chat.chat_id);
+        remove.disabled = true;
+      });
+      actions.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && actions.open) {
+          actions.open = false;
+          toggle.focus();
+        }
+      });
+
+      actions.append(toggle, remove);
+      row.append(item, actions);
+      list.appendChild(row);
     }
   }
+
+  onAuthStateChange(({ authenticated }) => {
+    if (!authenticated) pendingDeletes.clear();
+  });
 
   onMessage((msg) => {
     if (msg.op === "inventory_result" && Array.isArray(msg.domains)) {
       renderDomains(msg.domains);
+      return;
+    }
+
+    if (msg.op === "chat_deleted" && pendingDeletes.delete(msg.chat_id)) {
+      if (!msg.ok) {
+        window.alert(msg.error || "Could not delete the chat.");
+      } else if (conversation.getChatId() === msg.chat_id) {
+        startNewChat();
+      }
+      requestChats();
       return;
     }
 
@@ -161,12 +214,14 @@ export function createChatLeftPanel({
     }
   });
 
+  function startNewChat() {
+    conversation.newChat();
+    topBar.setTopic("New chat", "general");
+  }
+
   document
     .getElementById("btn-new-chat")
-    ?.addEventListener("click", () => {
-      conversation.newChat();
-      topBar.setTopic("New chat", "general");
-    });
+    ?.addEventListener("click", startNewChat);
 
   document
     .getElementById("btn-search")
