@@ -223,13 +223,16 @@ export function logout() {
   sendPublic({ op: "logout" });
 }
 
-export function sendRaw(obj) {
+export function sendRaw(obj, { queue = true } = {}) {
   if (authenticated && sendProtected(obj)) {
-    return;
+    return true;
   }
 
-  protectedQueue.push(obj);
-  connect();
+  if (queue) {
+    protectedQueue.push(obj);
+    connect();
+  }
+  return false;
 }
 
 let turnSequence = 0;

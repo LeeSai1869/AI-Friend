@@ -8,6 +8,7 @@
   --text-dim: #858585;
   --text-bright: #ffffff;
   --accent: #0e639c;
+  --chat-blue: #193b6e;
   --accent-hover: #1177bb;
   --green: #4ec9b0;
   --sidebar-w: 260px;
@@ -58,6 +59,25 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 }
 .sidebar-chat:hover { background: var(--bg-hover); }
 .sidebar-chat.active { background: var(--bg-active); }
+.chat-history-row { position: relative; display: flex; align-items: center; gap: 4px; }
+.chat-history-row .sidebar-chat {
+  flex: 1; min-width: 0; display: block; text-align: left;
+  background: var(--chat-blue); color: #fff; border: 0; border-radius: 16px;
+}
+.chat-history-row .sidebar-chat:hover { background: #224c86; }
+.chat-history-row .sidebar-chat.active { background: #2c5b99; }
+.chat-history-menu {
+  position: absolute; right: 0; top: 100%; z-index: 20;
+  padding: 6px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.chat-history-menu button {
+  padding: 5px 8px; white-space: nowrap; color: #ffb4b4;
+  background: transparent; border: 0; border-radius: 4px;
+}
+.chat-history-menu button:hover,
+.chat-history-menu button:focus-visible { background: var(--bg-active); }
+
 .sidebar-footer { border-top: 1px solid var(--border); padding: 8px; }
 .sidebar-footer button {
   width: 100%; background: transparent; border: none; color: var(--text);
@@ -76,6 +96,12 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 .msg-user .msg-role { color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px; }
 .msg-mind .msg-role { color: var(--accent); font-size: 11px; text-transform: uppercase; margin-bottom: 4px; }
 .msg-body { color: var(--text); line-height: 1.55; white-space: pre-wrap; }
+.msg-user { display: flex; flex-direction: column; align-items: flex-end; }
+.msg-user .msg-body {
+  max-width: 88%; padding: 10px 16px; border-radius: 20px;
+  background: var(--chat-blue); color: #fff; overflow-wrap: anywhere;
+}
+
 .code-window { flex: 1; display: flex; min-width: 0; }
 .projects-panel, .files-panel, .chat-panel {
   display: flex; flex-direction: column; flex-shrink: 0;
