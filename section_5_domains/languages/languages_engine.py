@@ -63,6 +63,32 @@ class LanguagesEngine(Organ):
     kind = "domain"
     scope = "outside_guards"
     capabilities = ["learn", "read", "translate", "write"]
+
+    def handle_consultation(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Read-only evidence from the local English lexicon."""
+        consultation = request.get("consultation") or {}
+        if not isinstance(consultation, dict):
+            return {"status": "error", "error": "consultation payload must be a mapping"}
+        capability = str(consultation.get("capability") or request.get("evidence_capability") or "").strip()
+        if capability != "lookup_word":
+            return {"status": "error", "error": "unsupported Languages evidence capability: " + repr(capability)}
+        from .lexicon import candidate_words, lexicon_path, lookup
+        path = lexicon_path()
+        if path is None or not path.exists():
+            return {"status": "error", "error": "the English lexicon has not been built in this state folder"}
+        words = candidate_words(consultation.get("subject"), consultation.get("question"))
+        if not words:
+            return {"status": "ok", "evidence": {"capability": capability, "kind": "lexicon_lookup",
+                                                 "words": {}, "note": "no word to look up was identified"}}
+        try:
+            found = lookup(words, path)
+        except Exception as exc:
+            return {"status": "error", "error": "lexicon lookup failed: " + str(exc)}
+        return {"status": "ok", "evidence": {
+            "capability": capability, "kind": "lexicon_lookup",
+            "authority": "stored reference data with a named source per definition; not verified against usage",
+            "words": found,
+        }}
     keywords = [
         "language", "translate", "translation", "urdu", "mandarin",
         "chinese", "hindi", "spanish", "arabic", "french", "german",
