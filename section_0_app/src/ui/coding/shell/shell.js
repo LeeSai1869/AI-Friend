@@ -17,7 +17,7 @@ import { createCodingEditor } from "../editor/editor.js";
 import { createCodingInput } from "../input/input.js";
 import { createCodingTerminal } from "../terminal/terminal.js";
 import { createCodingLeftPanel } from "../left_panel/left_panel.js";
-import { selectProject, setProject } from "../project/project.js";
+import { onProjectChange, selectProject, setProject } from "../project/project.js";
 import { createChatIntent } from "../../chat/intent/intent.js";
 import { openIntake } from "../../chat/memory_intake/memory_intake.js";
 import { createAccountControls } from "../../shared/account_controls/account_controls.js";
@@ -47,6 +47,7 @@ const editor = createCodingEditor();
 const terminal = createCodingTerminal({
   requestTests: () => sendDomainRequest("coder", "run_tests", {}),
 });
+onProjectChange(terminal.setProject);
 
 createCodingLeftPanel();
 createAccountControls({ onOpenIntake: openIntake });
@@ -158,10 +159,7 @@ onMessage((msg) => {
     }
 
     if (!msg.ok) {
-      console.error(
-        "[coding/project] domain request failed:",
-        msg.error || "unknown error",
-      );
+      terminal.showProjectError(msg.error || "Could not load the Coding project.");
       return;
     }
 
@@ -231,12 +229,14 @@ document
 
       sendDomainRequest("coder", "open_project", { root: project.root });
     } catch (error) {
-      console.error("[coding/project] project selection failed:", error);
+      terminal.showProjectError(error.message || "Could not open the project picker.");
     }
   });
 
 onAuthStateChange((state) => {
+  terminal.setConnected(state.authenticated);
   if (!state.authenticated) {
+    setProject({ name: "No project", root: "" });
     const interrupted = Boolean(pendingTurn);
     pendingTurn = null;
     chatInput.setBusy(false);
