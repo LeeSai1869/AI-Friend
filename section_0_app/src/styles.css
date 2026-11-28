@@ -27,7 +27,7 @@ html, body {
 button { font-family: inherit; font-size: inherit; cursor: pointer; }
 .app { display: flex; height: 100vh; }
 .sidebar {
-  width: var(--sidebar-w);
+  width: var(--chat-sidebar-width, var(--sidebar-w));
   background: #181818;
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0;
@@ -85,7 +85,12 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   display: flex; align-items: center; gap: 8px;
 }
 .sidebar-footer button:hover { background: var(--bg-hover); }
-.chat-window { flex: 1; display: flex; flex-direction: column; }
+.chat-window { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-window .chat-body { min-height: 0; }
+.custom-chat-composer-height .chat-window .input-bar textarea {
+  max-height: none;
+  height: var(--chat-composer-height) !important;
+}
 .chat-topbar { padding: 10px 16px; border-bottom: 1px solid var(--border); }
 .chat-topic { color: var(--text-bright); font-weight: 500; }
 .chat-topic .dim { color: var(--text-dim); font-weight: 400; margin-left: 8px; }
@@ -609,7 +614,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 
 .coding-app {
   display: grid;
-  grid-template-columns: 280px minmax(360px, 1fr) 420px;
+  grid-template-columns: var(--coding-left-width, 280px) 6px minmax(0, 1fr) 6px var(--coding-right-width, 420px);
   height: 100vh;
   min-width: 0;
   background: var(--bg);
@@ -807,9 +812,8 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 }
 
 #coding-terminal {
-  height: 200px;
+  height: var(--coding-terminal-height, 200px);
   flex-shrink: 0;
-  transition: height 120ms ease;
 }
 
 #coding-terminal.coding-terminal-collapsed {
@@ -889,7 +893,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 
 @media (max-width: 1100px) {
   .coding-app {
-    grid-template-columns: 230px minmax(320px, 1fr) 340px;
+    grid-template-columns: var(--coding-left-width, 230px) 6px minmax(0, 1fr) 6px var(--coding-right-width, 340px);
   }
 }
 
@@ -907,3 +911,26 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   font: inherit;
 }
 .intake-section > textarea { resize: vertical; min-height: 160px; }
+
+.panel-divider {
+  flex: 0 0 6px;
+  background: var(--border);
+  touch-action: none;
+}
+.panel-divider[aria-orientation="vertical"] { cursor: col-resize; }
+.panel-divider[aria-orientation="horizontal"] { cursor: row-resize; }
+.panel-divider:hover,
+.panel-divider:focus-visible { background: var(--accent); }
+.resizing-columns, .resizing-columns * { cursor: col-resize !important; user-select: none; }
+.resizing-rows, .resizing-rows * { cursor: row-resize !important; user-select: none; }
+.coding-center-panel:has(#coding-terminal.coding-terminal-collapsed) > .panel-divider { display: none; }
+
+#terminal-session-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+}
+#terminal-session-tabs button { flex-shrink: 0; }
+#terminal-shell-status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-session-screen { width: 100%; height: 100%; }

@@ -1,15 +1,15 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{mpsc, Mutex};
 use tauri::{ipc::Channel, State, WebviewWindow};
 
 #[derive(Default)]
-pub struct CodingTerminal(Mutex<Option<Session>>);
+pub struct CodingTerminal(Mutex<HashMap<String, Session>>);
 
 struct Session {
-    id: String,
     master: Box<dyn MasterPty + Send>,
     input: mpsc::SyncSender<String>,
     child: Box<dyn Child + Send + Sync>,
@@ -61,24 +61,21 @@ impl CodingTerminal {
         action: impl FnOnce(&Session) -> Result<T, String>,
     ) -> Result<T, String> {
         let current = self.0.lock().map_err(|error| error.to_string())?;
-        let session = current
-            .as_ref()
-            .filter(|session| session.id == id)
-            .ok_or("The terminal session has closed.")?;
+        let session = current.get(id).ok_or("The terminal session has closed.")?;
         action(session)
     }
 
     pub fn close(&self, id: Option<&str>) {
-        let session = {
+        let sessions = {
             let Ok(mut current) = self.0.lock() else {
                 return;
             };
-            if id.is_some_and(|id| current.as_ref().is_none_or(|session| session.id != id)) {
-                return;
+            match id {
+                Some(id) => current.remove(id).into_iter().collect::<Vec<_>>(),
+                None => current.drain().map(|(_, session)| session).collect(),
             }
-            current.take()
         };
-        drop(session);
+        drop(sessions);
     }
 }
 
@@ -99,8 +96,11 @@ pub fn coding_terminal_start(
     }
 
     let mut current = terminal.0.lock().map_err(|error| error.to_string())?;
-    if current.is_some() {
-        return Err("A Coding terminal session is already open.".into());
+    if current.contains_key(&id) {
+        return Err("This Coding terminal session is already open.".into());
+    }
+    if current.len() >= 8 {
+        return Err("Close a shell before opening another. Up to eight shells can be open.".into());
     }
 
     let pty = native_pty_system()
@@ -157,12 +157,14 @@ pub fn coding_terminal_start(
         let _ = events.send(TerminalEvent::Closed);
     });
 
-    *current = Some(Session {
+    current.insert(
         id,
-        master: pty.master,
-        input,
-        child,
-    });
+        Session {
+            master: pty.master,
+            input,
+            child,
+        },
+    );
     Ok(())
 }
 

@@ -9,7 +9,7 @@
 <body>
   <div class="app coding-app">
 
-    <aside class="coding-left-panel">
+    <aside class="coding-left-panel" id="coding-sidebar">
       <div class="coding-project-header">
         <div id="coding-project-name">AI Friend V1</div>
         <div id="coding-project-root"></div>
@@ -30,9 +30,13 @@
       </div>
     </aside>
 
+    <div class="panel-divider" role="separator" tabindex="0" aria-label="Resize Explorer" aria-orientation="vertical"
+      aria-controls="coding-sidebar" data-panel-size="coding-left-width" data-min="160" data-limit="0.32"></div>
     <main class="coding-center-panel">
       <section class="editor-panel" id="editor"></section>
 
+      <div class="panel-divider" role="separator" tabindex="0" aria-label="Resize Terminal" aria-orientation="horizontal"
+        aria-controls="coding-terminal" data-panel-size="coding-terminal-height" data-min="170" data-limit="0.68" data-reverse></div>
       <section class="terminal-panel" id="coding-terminal">
         <button type="button" class="terminal-header" id="terminal-toggle"
           aria-expanded="true" aria-controls="terminal-content">Terminal ▾</button>
@@ -43,7 +47,8 @@
           </div>
           <div class="terminal-view" id="terminal-shell-view">
             <div class="terminal-toolbar">
-              <button type="button" id="terminal-open-shell" disabled>Start shell</button>
+              <button type="button" id="terminal-open-shell" aria-label="New shell" title="New shell" disabled>+</button>
+              <div id="terminal-session-tabs" role="group" aria-label="Shell sessions"></div>
               <button type="button" id="terminal-close-shell" disabled>Close shell</button>
               <span id="terminal-shell-status" role="status"></span>
             </div>
@@ -60,7 +65,9 @@
       </section>
     </main>
 
-    <aside class="coding-chat-panel">
+    <div class="panel-divider" role="separator" tabindex="0" aria-label="Resize Coding chat" aria-orientation="vertical"
+      aria-controls="coding-chat-panel" data-panel-size="coding-right-width" data-min="230" data-limit="0.43" data-reverse></div>
+    <aside class="coding-chat-panel" id="coding-chat-panel">
       <div class="chat-topbar coding-chat-topbar">
         <div class="chat-topic">Current chat <span class="dim">· general</span></div>
         <button id="coding-new-chat" type="button" aria-label="New chat">+</button>
@@ -97,6 +104,7 @@
     </div>
   </div>
 
+  <script type="module" src="ui/shared/panel_resize.js"></script>
   <script type="module" src="ui/coding/shell/shell.js"></script>
 </body>
 </html>
