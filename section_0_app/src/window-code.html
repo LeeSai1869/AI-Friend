@@ -33,13 +33,14 @@
       <section class="editor-panel" id="editor"></section>
 
       <section class="terminal-panel" id="coding-terminal">
-        <button class="terminal-header" id="terminal-toggle">
-          Terminal ▼
-        </button>
-        <div class="terminal-body" id="terminal">
-          <div class="line">
-            Terminal execution will use the active Coding project.
+        <button type="button" class="terminal-header" id="terminal-toggle"
+          aria-expanded="true" aria-controls="terminal-content">Terminal ▾</button>
+        <div class="terminal-content" id="terminal-content">
+          <div class="terminal-toolbar">
+            <button type="button" id="terminal-run-tests" disabled>Run Python tests</button>
+            <span id="terminal-status" role="status"></span>
           </div>
+          <pre class="terminal-body" id="terminal" aria-live="polite" tabindex="0"></pre>
         </div>
       </section>
     </main>

@@ -1,9 +1,14 @@
 function getDialogOpen() {
   const dialog = window.__TAURI__?.dialog;
-  if (!dialog || typeof dialog.open !== "function") {
-    throw new Error("Tauri dialog API is unavailable in the Coding window");
+  if (typeof dialog?.open === "function") {
+    return dialog.open.bind(dialog);
   }
-  return dialog.open.bind(dialog);
+
+  const core = window.__TAURI__?.core;
+  if (typeof core?.invoke === "function") {
+    return (options) => core.invoke("plugin:dialog|open", { options });
+  }
+  throw new Error("Tauri dialog API is unavailable in the Coding window");
 }
 
 let projectName = "No project";
