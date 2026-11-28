@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>AI Friend — Coding</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="vendor/xterm/xterm.css" />
 </head>
 <body>
   <div class="app coding-app">
@@ -37,10 +38,24 @@
           aria-expanded="true" aria-controls="terminal-content">Terminal ▾</button>
         <div class="terminal-content" id="terminal-content">
           <div class="terminal-toolbar">
-            <button type="button" id="terminal-run-tests" disabled>Run Python tests</button>
-            <span id="terminal-status" role="status"></span>
+            <button type="button" id="terminal-shell-tab" aria-pressed="true">Shell</button>
+            <button type="button" id="terminal-tests-tab" aria-pressed="false">Python tests</button>
           </div>
-          <pre class="terminal-body" id="terminal" aria-live="polite" tabindex="0"></pre>
+          <div class="terminal-view" id="terminal-shell-view">
+            <div class="terminal-toolbar">
+              <button type="button" id="terminal-open-shell" disabled>Start shell</button>
+              <button type="button" id="terminal-close-shell" disabled>Close shell</button>
+              <span id="terminal-shell-status" role="status"></span>
+            </div>
+            <div id="terminal-shell-screen" aria-label="Interactive Coding terminal"></div>
+          </div>
+          <div class="terminal-view" id="terminal-tests-view" hidden>
+            <div class="terminal-toolbar">
+              <button type="button" id="terminal-run-tests" disabled>Run Python tests</button>
+              <span id="terminal-status" role="status"></span>
+            </div>
+            <pre class="terminal-body" id="terminal" aria-live="polite" tabindex="0"></pre>
+          </div>
         </div>
       </section>
     </main>

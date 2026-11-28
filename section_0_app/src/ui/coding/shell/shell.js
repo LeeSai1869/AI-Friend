@@ -16,6 +16,7 @@ import { createCodingExplorer } from "../explorer/explorer.js";
 import { createCodingEditor } from "../editor/editor.js";
 import { createCodingInput } from "../input/input.js";
 import { createCodingTerminal } from "../terminal/terminal.js";
+import { createInteractiveShell } from "../terminal/interactive_shell.js";
 import { createCodingLeftPanel } from "../left_panel/left_panel.js";
 import { onProjectChange, selectProject, setProject } from "../project/project.js";
 import { createChatIntent } from "../../chat/intent/intent.js";
@@ -47,7 +48,11 @@ const editor = createCodingEditor();
 const terminal = createCodingTerminal({
   requestTests: () => sendDomainRequest("coder", "run_tests", {}),
 });
-onProjectChange(terminal.setProject);
+const interactiveShell = createInteractiveShell();
+onProjectChange((project) => {
+  terminal.setProject(project);
+  interactiveShell.setProject(project);
+});
 
 createCodingLeftPanel();
 createAccountControls({ onOpenIntake: openIntake });
@@ -235,6 +240,7 @@ document
 
 onAuthStateChange((state) => {
   terminal.setConnected(state.authenticated);
+  interactiveShell.setConnected(state.authenticated);
   if (!state.authenticated) {
     setProject({ name: "No project", root: "" });
     const interrupted = Boolean(pendingTurn);

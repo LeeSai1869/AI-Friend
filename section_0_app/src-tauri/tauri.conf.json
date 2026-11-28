@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.centralmind.app",
   "build": {
-    "frontendDist": "../src"
+    "frontendDist": "../src",
+    "beforeDevCommand": "node scripts/prepare-terminal.mjs",
+    "beforeBuildCommand": "node scripts/prepare-terminal.mjs"
   },
   "app": {
     "windows": [

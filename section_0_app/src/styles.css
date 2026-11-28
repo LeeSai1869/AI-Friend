@@ -835,18 +835,41 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   color: var(--text-dim);
 }
 
-#terminal-run-tests {
+#coding-terminal .terminal-view {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#coding-terminal .terminal-view[hidden] { display: none; }
+
+#terminal-shell-screen {
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 4px;
+  overflow: hidden;
+}
+
+#coding-terminal .terminal-toolbar button {
+  padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 4px 8px;
-  background: var(--accent);
+  background: var(--bg-input);
   color: var(--text-bright);
 }
 
-#terminal-run-tests:disabled {
-  background: var(--bg-input);
+#coding-terminal .terminal-toolbar button[aria-pressed="true"] {
+  background: var(--chat-blue);
+}
+
+#coding-terminal .terminal-toolbar button:disabled {
   color: var(--text-dim);
   cursor: default;
+}
+
+#coding-terminal .terminal-toolbar #terminal-run-tests:enabled {
+  background: var(--accent);
 }
 
 #coding-terminal .terminal-body {

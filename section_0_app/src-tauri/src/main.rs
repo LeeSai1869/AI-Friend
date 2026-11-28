@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod coding_terminal;
+
+use coding_terminal::CodingTerminal;
 use std::process;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
@@ -475,6 +478,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(CodingTerminal::default())
         .manage(BackendProcess(Mutex::new(None)))
         .manage(SpeechProcess(Arc::new(Mutex::new(None))))
         .manage(ApplicationSession(Mutex::new(None)))
@@ -483,6 +487,10 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            coding_terminal::coding_terminal_start,
+            coding_terminal::coding_terminal_write,
+            coding_terminal::coding_terminal_resize,
+            coding_terminal::coding_terminal_stop,
             open_code_window,
             open_trading_window,
             open_chat_window,
@@ -501,6 +509,10 @@ fn main() {
                     event: WindowEvent::CloseRequested { .. },
                     ..
                 } => {
+                    if label == "code" {
+                        app.state::<CodingTerminal>().close(None);
+                    }
+
                     // AI Friend owns one runtime shared by all of its windows.
                     //
                     // Closing a specialist window must not destroy that runtime
@@ -526,6 +538,7 @@ fn main() {
                 }
 
                 tauri::RunEvent::Exit => {
+                    app.state::<CodingTerminal>().close(None);
                     // Defense in depth for menu exits, OS termination paths,
                     // programmatic exits, and any future exit mechanism.
                     stop_speech(app);

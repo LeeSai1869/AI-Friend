@@ -80,3 +80,6 @@ whisperkit/
 **/.knowledge-write.lock
 
 **/.intake-write.lock
+
+# Generated desktop terminal assets
+/section_0_app/src/vendor/xterm/
