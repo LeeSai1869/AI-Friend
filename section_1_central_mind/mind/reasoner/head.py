@@ -425,6 +425,17 @@ class Reasoner:
             lines.append("Valid executable steps are: " + "; ".join(executable) + ".")
         return lines
 
+    STEP_KIND_ALIASES = {"execution": "domain", "execute": "domain", "action": "domain", "capability": "domain"}
+
+    def _normalize_step_kind(self, row):
+        """Planners sometimes copy the catalog's purpose label into the step kind."""
+        if isinstance(row, dict):
+            kind = str(row.get("kind") or "").strip().lower()
+            if kind in self.STEP_KIND_ALIASES:
+                row = dict(row)
+                row["kind"] = self.STEP_KIND_ALIASES[kind]
+        return row
+
     def _note_drop(self, step_id, component, capability, reason) -> None:
         """Remember why a proposed step was not accepted, for diagnosis and re-planning."""
         rows = getattr(self, "last_dropped_steps", None)
@@ -446,6 +457,8 @@ class Reasoner:
         evidence: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Validate final execution proposals against trusted Inventory."""
+
+        rows = [self._normalize_step_kind(row) for row in (rows or [])]
 
         valid: List[Dict[str, Any]] = []
         known_ids = set()

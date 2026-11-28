@@ -54,7 +54,7 @@ ORGAN = {
             "description": (
                 "Look up English words in the local lexicon and return their definitions, parts of speech and "
                 "closed-class (function word) information, with the source of every definition. Consult this when "
-                "the user asks what a specific English word means or how it is used. It is stored reference data, "
+                "the user asks what a specific English word means, whether a word exists or is known, or how it is used. It is stored reference data, "
                 "not a translation, and it does not cover inflected forms or names reliably."
             ),
             "read_only": True,
